@@ -24,8 +24,8 @@ absztraktjaiból kérdésekre válaszol forrásmegjelöléssel, és kimutatja a 
 2. A 🔑 *Secrets* fülön vedd fel a `GEMINI_API_KEY` titkot.
 3. *Runtime → Run all*. Az adatok és a vektorok a Google Drive `W12_trendfigyelo/` mappájába mentődnek.
 
-**Kódfrissítés után** elég a notebook első celláját újrafuttatni: lehúzza a legfrissebb kódot a GitHubról,
-és az `autoreload` betölti. A notebook szerkezetének változásakor nyisd meg újra a GitHubról.
+**Kódfrissítés után** futtasd újra a notebook első celláját, majd az alatta lévőket (*Runtime → Run after*):
+az első cella lehúzza és újratölti a legfrissebb kódot. A notebook szerkezetének változásakor nyisd meg újra a GitHubról.
 
 ## Tesztek
 
