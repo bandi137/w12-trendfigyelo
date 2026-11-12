@@ -5,6 +5,8 @@
 **W12 – Kutatási trendfigyelő RAG-gal.** Az arXiv egy kategóriájának (alapból `cs.CL`) elmúlt 12 havi
 absztraktjaiból kérdésekre válaszol forrásmegjelöléssel, és kimutatja a felfutó kutatási témákat.
 
+**Hol tartunk:** lásd a [folytatási jegyzetet](W12_folytatas.md).
+
 ## Felépítés
 
 | Fájl | Tartalom |
