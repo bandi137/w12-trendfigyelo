@@ -10,10 +10,13 @@ https://claude.ai/artifact/2GZDCWTAp3tby8K8kGiTzK  (Claude Doc; docs-eszközökk
 - Futtatás: Google Colab (T4). A notebook első cellája git pull-lal frissíti a kódot, majd kézzel törli és újraimportálja a trendfigyelo modulokat (az IPython autoreload a Colabban nem működik: "No module named 'imp'"). Kódfrissítés után: első cella + Runtime → Run after. Adatok a Drive-on: MyDrive/W12_trendfigyelo/cs_CL/. Mindenki a saját Gemini API-kulcsát használja (Colab Secrets: GEMINI_API_KEY).
 - Stack: arXiv cs.CL, 12 hónap × 400 cikk (4800); intfloat/multilingual-e5-base; gemini-3.5-flash-lite; KMeans 25 téma + c-TF-IDF kulcsszavak; LLM-es témanév + leírás.
 - Kód: trendfigyelo/ (data, embed, llm, rag, trends, prompts, evaluate, app, report, publish), tests/ (18 offline teszt).
-- Webes felület: a notebook 7. szakasza indítja (Gradio, `….gradio.live` link a munkamenet végéig). Fülek: Kérdezz, Trendek, Kiértékelés, Közzététel. A Közzététel gomb egy commitban feltölti a `docs/index.html`-t és a `docs/archiv/ÉÉÉÉ-HH-NN.html`-t; ehhez `GITHUB_TOKEN` kell a Colab Secrets-ben (András: finomhangolt token, Contents RW; Szilvia: klasszikus token, `public_repo`, mert közreműködőként a finomhangolt nem működik). Útmutató: `docs/KOZZETETEL.md`.
+- Webes felület: a notebook 7. szakasza indítja (Gradio, `….gradio.live` link a munkamenet végéig). Fülek: Kérdezz, Trendek, Kiértékelés, Közzététel. A Közzététel gomb egy commitban feltölti a `docs/index.html`-t és a `docs/archiv/ÉÉÉÉ-HH-NN.html`-t; ehhez `GITHUB_TOKEN` kell a Colab Secrets-ben (Sümegi András: finomhangolt token, Contents RW; Süle Szilvia: klasszikus token, `public_repo`, mert közreműködőként a finomhangolt nem működik). Útmutató: `docs/KOZZETETEL.md`.
 - Tesztkérdések: `eval/kerdesek.csv` (oszlopok: vart_cikkek, keszitette, kerdes; útmutató: `eval/README.md`). A GitHub webes felületén szerkeszthető; a notebook 6. szakasza beolvassa, és figyelmeztet az elírt azonosítókra.
 
-## Munkamegosztás (2026-11-13-tól)
+## Munkamegosztás
+- Ágak gazdái (a projektjavaslat óta): Sümegi András – trendág (témák, trendek), Süle Szilvia – RAG-ág (kérdés–válasz, visszakeresés).
+
+### Napi munka (2026-11-13-tól)
 - Sümegi András: minden kód- és notebook-módosítás Claude Code-dal, ő tölti fel a repóba. A notebookot és a `trendfigyelo/` kódot egyszerre csak ő szerkeszti.
 - Süle Szilvia (ingyenes Claude, nincs Claude Code): futtatás és ellenőrzés Colabban, tesztkérdések az `eval/kerdesek.csv`-ben, kézi pontozás, képernyőképek, a dokumentáció szövege. A saját fájljait a GitHub webes felületén tölti fel közreműködőként.
 
