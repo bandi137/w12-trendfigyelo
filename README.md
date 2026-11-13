@@ -7,6 +7,10 @@ absztraktjaiból kérdésekre válaszol forrásmegjelöléssel, és kimutatja a 
 
 **Hol tartunk:** lásd a [folytatási jegyzetet](W12_folytatas.md).
 
+## Készítők
+
+Sümegi András ([bandi137](https://github.com/bandi137)), Süle Szilvia ([SuleSz](https://github.com/SuleSz))
+
 ## Felépítés
 
 | Fájl | Tartalom |
@@ -17,7 +21,8 @@ absztraktjaiból kérdésekre válaszol forrásmegjelöléssel, és kimutatja a 
 | `trendfigyelo/rag.py` | Visszakeresés, válaszgenerálás, hivatkozás-ellenőrzés |
 | `trendfigyelo/trends.py` | Témák (KMeans + c-TF-IDF kulcsszavak), havi trendek, LLM-es témanevek, táblázat, grafikon |
 | `trendfigyelo/prompts.py` | Az összes prompt |
-| `trendfigyelo/evaluate.py` | Kiértékelés (hit@1/5/10) |
+| `trendfigyelo/evaluate.py` | Kiértékelés (hit@1/5/10), tesztkérdések beolvasása |
+| `eval/kerdesek.csv` | Tesztkérdések a várt cikkekkel (útmutató: `eval/README.md`) |
 | `tests/` | Offline tesztek kitalált adaton és szimulált LLM-mel |
 
 ## Használat Colabban

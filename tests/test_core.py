@@ -166,3 +166,29 @@ def test_generate_retries_on_quota(monkeypatch):
     with pytest.raises(RuntimeError):
         tf.generate(types.SimpleNamespace(models=types.SimpleNamespace(
             generate_content=lambda **k: (_ for _ in ()).throw(RuntimeError("404 NOT_FOUND")))), "m", "p")
+
+
+def test_load_questions(tmp_path, capsys):
+    p = tmp_path / "kerdesek.csv"
+    p.write_text(
+        "﻿vart_cikkek,keszitette,kerdes\n"
+        "2512.10100; arXiv:2602.22144v2,SuleSz,Mi az a RAG, és hogyan csökkenti a hallucinációt?\n"
+        '2610.36980 2605.30931,bandi137,"How are LLM agents evaluated, briefly?"\n'
+        "\n"
+        "2512.10100,SuleSz,\n"
+        "csak egy oszlop\n"
+        "9999.99999,SuleSz,Elírt azonosító\n",
+        encoding="utf-8")
+    qs = tf.load_questions(str(p), known_ids={"2512.10100", "2602.22144", "2610.36980", "2605.30931"})
+    out = capsys.readouterr().out
+    assert [q["q"] for q in qs] == ["Mi az a RAG, és hogyan csökkenti a hallucinációt?",
+                                    "How are LLM agents evaluated, briefly?", "Elírt azonosító"]
+    assert qs[0]["expected"] == ["2512.10100", "2602.22144"]          # szövegként, nem 2512.101
+    assert qs[1]["expected"] == ["2610.36980", "2605.30931"] and qs[1]["keszitette"] == "bandi137"
+    assert "5. sor kihagyva" in out and "6. sor kihagyva" in out and "9999.99999" in out
+
+
+def test_shipped_questions_file_loads():
+    import pathlib
+    path = pathlib.Path(__file__).resolve().parents[1] / "eval" / "kerdesek.csv"
+    assert tf.load_questions(str(path)) is not None
