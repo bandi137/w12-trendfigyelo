@@ -1,3 +1,5 @@
 arxiv
 sentence-transformers
 google-genai
+gradio
+plotly
