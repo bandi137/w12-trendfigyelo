@@ -1,5 +1,5 @@
 """W12 – Kutatási trendfigyelő RAG-gal. A notebook ezeket a modulokat használja."""
-from .data import month_ranges, load_or_download
+from .data import month_ranges, load_or_download, download_dates
 from .embed import Embedder, load_or_embed
 from .llm import generate
 from .rag import RAG, retrieve, build_prompt, check_citations

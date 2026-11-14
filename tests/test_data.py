@@ -1,0 +1,97 @@
+"""A hónaponkénti arXiv-tárolás és a vektor-gyorsítótár tesztjei (hálózat nélkül, szimulált letöltővel)."""
+import json
+import os
+from datetime import date
+
+import numpy as np
+import pandas as pd
+import pytest
+
+import trendfigyelo as tf
+
+TODAY = date(2026, 11, 14)          # lezárt hónapok: 2026-08, 2026-09, 2026-10
+
+
+class FakeDownloader:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, category, start, end, label, per_month):
+        self.calls.append(label)
+        return pd.DataFrame([{"id": f"{label[2:4]}{label[5:7]}.{i:05d}", "title": f"T {label} {i}",
+                              "abstract": "a", "published": label + "-10", "month": label,
+                              "authors": "X", "url": "u"} for i in range(per_month)])
+
+
+def load(d, dl, refresh="auto", today=TODAY, per_month=3):
+    return tf.load_or_download(str(d), "cs.CL", 3, per_month, refresh=refresh, today=today, downloader=dl)
+
+
+def test_months_downloaded_once_then_from_drive(tmp_path):
+    dl = FakeDownloader()
+    df = load(tmp_path, dl)
+    assert dl.calls == ["2026-08", "2026-09", "2026-10"] and len(df) == 9
+    assert sorted(os.listdir(tmp_path / "honapok")) == ["2026-08.csv", "2026-09.csv", "2026-10.csv"]
+    meta = json.load(open(tmp_path / "letoltes.json"))
+    assert meta["2026-10"] == dict(letoltve="2026-11-14", cikkek=3, per_month=3, category="cs.CL")
+
+    dl.calls.clear()
+    df2 = load(tmp_path, dl)                                  # ugyanaz a nap: semmi letöltés
+    assert dl.calls == [] and df2.id.tolist() == df.id.tolist()
+
+    df3 = load(tmp_path, dl, today=date(2026, 12, 1))          # új hónap: csak az töltődik le
+    assert dl.calls == ["2026-11"] and sorted(df3.month.unique()) == ["2026-09", "2026-10", "2026-11"]
+    assert tf.download_dates(str(tmp_path), ["2026-09", "2026-11"]) == "2026-11-14 – 2026-12-01"
+    assert tf.download_dates(str(tmp_path), ["2026-09"]) == "2026-11-14"
+
+
+def test_refresh_modes_and_setting_change(tmp_path):
+    dl = FakeDownloader()
+    load(tmp_path, dl)
+    dl.calls.clear()
+    load(tmp_path, dl, refresh="mindig")
+    assert dl.calls == ["2026-08", "2026-09", "2026-10"]
+    dl.calls.clear()
+    df = load(tmp_path, dl, refresh="soha", today=date(2027, 3, 1))   # az ablak továbblépett, de nem tölt
+    assert dl.calls == [] and df.month.max() == "2026-10"
+    load(tmp_path, dl, per_month=5)                                    # más PER_MONTH: újra kell tölteni
+    assert dl.calls == ["2026-08", "2026-09", "2026-10"]
+    with pytest.raises(ValueError):
+        load(tmp_path, dl, refresh="néha")
+
+
+def test_legacy_papers_csv_is_split_not_redownloaded(tmp_path):
+    old = pd.concat([FakeDownloader()("cs.CL", "", "", m, 3) for m in ("2026-08", "2026-09", "2026-10")])
+    old.to_csv(tmp_path / "papers.csv", index=False)
+    dl = FakeDownloader()
+    df = load(tmp_path, dl)
+    assert dl.calls == [] and df.id.tolist() == old.id.tolist()
+    assert sorted(json.load(open(tmp_path / "letoltes.json"))) == ["2026-08", "2026-09", "2026-10"]
+
+
+class FakeEmbedder:
+    def __init__(self, name="e5"):
+        self.model_name, self.n = name, 0
+
+    def passages(self, texts):
+        self.n += 1
+        return np.ones((len(texts), 4))
+
+
+def test_embeddings_recomputed_fully_on_any_change(tmp_path):
+    df = FakeDownloader()("cs.CL", "", "", "2026-10", 5)
+    e = FakeEmbedder()
+    tf.load_or_embed(df, e, str(tmp_path))
+    tf.load_or_embed(df, e, str(tmp_path))
+    assert e.n == 1                                            # semmi sem változott: betölti
+    tf.load_or_embed(df.iloc[1:], e, str(tmp_path))
+    assert e.n == 2                                            # változott a cikklista: mind újra
+    e2 = FakeEmbedder("masik-modell")
+    assert len(tf.load_or_embed(df.iloc[1:], e2, str(tmp_path))) == 4 and e2.n == 1
+
+
+def test_report_shows_download_date():
+    table = pd.DataFrame(columns=["név", "leírás", "kulcsszavak", "cikkek", "növekedés"])
+    html = tf.build_report(dict(category="cs.CL", months="2026-08 – 2026-10", n_papers=9,
+                                downloaded="2026-11-14"), table)
+    assert "adat letöltve: 2026-11-14" in html

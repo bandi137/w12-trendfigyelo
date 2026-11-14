@@ -9,6 +9,7 @@ from datetime import datetime
 
 from . import report
 from .evaluate import evaluate, load_questions
+from .data import download_dates
 from .publish import PublishError, list_archive, pages_url, publish_files
 from .trends import find_topics, name_topics, summarize_trends, topic_trends, trend_table
 
@@ -94,7 +95,8 @@ class TrendApp:
 
     def meta(self):
         return dict(category=self.s["category"], n_papers=len(self.df),
-                    months=f"{self.df.month.min()} – {self.df.month.max()}", emb_model=self.s["emb_model"],
+                    months=f"{self.df.month.min()} – {self.df.month.max()}",
+                    downloaded=download_dates(self.data_dir, sorted(self.df.month.unique())), emb_model=self.s["emb_model"],
                     llm_model=self.s["llm_model"], code_version=git_version(self.repo_dir),
                     generated=datetime.now().strftime("%Y-%m-%d %H:%M"), authors=AUTHORS,
                     repo_url=f"https://github.com/{self.repo}")

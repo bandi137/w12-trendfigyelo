@@ -16,7 +16,7 @@ Sümegi András ([bandi137](https://github.com/bandi137)), Süle Szilvia ([SuleS
 | Fájl | Tartalom |
 | --- | --- |
 | `W12_trendfigyelo_rag.ipynb` | Colab notebook: beállítások, hívások, eredmények |
-| `trendfigyelo/data.py` | arXiv-letöltés havi bontásban, Drive-os gyorsítótárral |
+| `trendfigyelo/data.py` | arXiv-letöltés hónaponként, a hónapok külön tárolva a Drive-on (`FRISSITES`: auto / mindig / soha) |
 | `trendfigyelo/embed.py` | Vektorizálás (`intfloat/multilingual-e5-base`) |
 | `trendfigyelo/rag.py` | Visszakeresés, válaszgenerálás, hivatkozás-ellenőrzés |
 | `trendfigyelo/trends.py` | Témák (KMeans + c-TF-IDF kulcsszavak), havi trendek, LLM-es témanevek, táblázat, grafikon |
@@ -34,6 +34,8 @@ Sümegi András ([bandi137](https://github.com/bandi137)), Süle Szilvia ([SuleS
 1. Nyisd meg a notebookot a fenti gombbal, és állítsd be: *Runtime → Change runtime type → T4 GPU*.
 2. A 🔑 *Secrets* fülön vedd fel a `GEMINI_API_KEY` titkot.
 3. *Runtime → Run all*. Az adatok és a vektorok a Google Drive `W12_trendfigyelo/` mappájába mentődnek.
+   Minden lezárt hónap egyszer töltődik le (`honapok/ÉÉÉÉ-HH.csv`); új hónapnál csak az. A vektorok akkor
+   számolódnak újra (mind), ha a cikklista vagy a modell változott.
 
 **Webes felület:** a notebook 7. szakasza elindítja (nyilvános `….gradio.live` link a Colab-munkamenet végéig).
 A *Közzététel* gombhoz kell egy `GITHUB_TOKEN` a *Secrets* fülön – útmutató: [`docs/KOZZETETEL.md`](docs/KOZZETETEL.md).

@@ -89,12 +89,13 @@ def _growth_cell(max_growth):
 
 def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, eval_df=None, eval_summary=None,
                  archive=None, n_show=8, archive_prefix="archiv/"):
-    """meta: dict(category, months, n_papers, emb_model, llm_model, code_version, generated, authors, repo_url).
+    """meta: dict(category, months, n_papers, downloaded, emb_model, llm_model, code_version, generated, authors, repo_url).
     archive: korábbi jelentések dátumcímkéi; archive_prefix: "archiv/" a kezdőoldalon, "" az archív oldalakon."""
     papers = papers if papers is not None else pd.DataFrame(columns=["id", "title"])
     titles = dict(zip(papers.id.astype(str), papers.title)) if len(papers) else {}
     e = html.escape
     generated = meta.get("generated") or datetime.now().strftime("%Y-%m-%d %H:%M")
+    downloaded = f' · adat letöltve: {e(meta["downloaded"])}' if meta.get("downloaded") else ""
 
     sections = []
     top = table.head(n_show)
@@ -186,7 +187,7 @@ code {{ font-size:.9em; }}
 <header>
   <div class="eyebrow">Kutatási trendfigyelő · arXiv {e(meta.get("category", ""))}</div>
   <h1>Mi történik most a(z) {e(meta.get("category", ""))} kutatásban?</h1>
-  <p class="meta">{e(str(meta.get("n_papers", "")))} cikk · {e(meta.get("months", ""))} · frissítve: {e(generated)}</p>
+  <p class="meta">{e(str(meta.get("n_papers", "")))} cikk · {e(meta.get("months", ""))}{downloaded} · jelentés: {e(generated)}</p>
   <nav>{nav}</nav>
 </header>
 <main>{"".join(sections)}</main>
