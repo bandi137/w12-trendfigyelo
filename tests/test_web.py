@@ -130,10 +130,11 @@ def test_ui_builds(app):
 
 def test_figure_follows_n_show(app):
     app.compute_trends(4)
-    assert len(app.figure().data) == 4                   # n_show = 4
-    assert len(app.figure(3).data) == 3
+    lines = lambda fig: [t for t in fig.data if t.mode == "lines"]     # a nyers havi pontok külön nyomvonalak
+    assert len(lines(app.figure())) == 4                 # n_show = 4
+    assert len(lines(app.figure(3))) == 3
     app.s["n_show"] = 2
-    assert len(app.figure().data) == 2
+    assert len(lines(app.figure())) == 2
     assert app.build_html().count("Téma ") >= 2          # a jelentés is ugyanennyi témát használ
 
 
