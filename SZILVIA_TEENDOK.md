@@ -29,7 +29,7 @@ Beállításokba bekerült egy `FRISSITES` kapcsoló. Egy már megnyitott Colab-
 3. *Runtime → Change runtime type → T4 GPU* (ha nem az van beállítva).
 4. *Runtime → Run all*. A Drive-hozzáférést engedélyezd.
 5. Ellenőrizd a kimeneteket:
-   - **0. szakasz (első kódcella):** a sor így kezdődik: `Kódverzió: 9c982ee` (vagy annál újabb).
+   - **0. szakasz (első kódcella):** a sor így kezdődik: `Kódverzió: <azonosító> – …`. Az azonosítót András megadja, vagy a GitHub főoldalán a legfrissebb commit mellett látod.
    - **1. szakasz (Beállítások):** van benne egy `FRISSITES = "auto"` sor. Ezt **ne** írd át.
    - **2. szakasz (Adatgyűjtés):** az első futáskor ezt írja ki: *„A korábbi papers.csv hónapokra bontva
      (12 hónap …)”*, majd *„4800 cikk … Drive-ról: 12 hónap, most letöltve: 0 hónap.”* Ez azt jelenti, hogy
