@@ -153,3 +153,16 @@ def test_figure_highlights_top_three_and_labels(app):
     fig = app.figure(4)
     assert len(fig.layout.annotations) >= 4 + 2          # 4 felirat + 2 sáv
     assert fig.layout.showlegend is False
+
+
+def test_launch_requires_password_when_secret_set(app, monkeypatch):
+    seen = {}
+    class FakeUI:
+        def launch(self, **kw): seen.update(kw); return "ok"
+    monkeypatch.setattr(app, "build_ui", lambda: FakeUI())
+    app.launch(share=False, password="titok")
+    assert seen["auth"] == ("w12", "titok") and seen["share"] is False
+    seen.clear()
+    monkeypatch.setattr("trendfigyelo.app.colab_secret", lambda name: None)
+    app.launch(share=False)
+    assert "auth" not in seen

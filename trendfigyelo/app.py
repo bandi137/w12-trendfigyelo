@@ -227,6 +227,16 @@ class TrendApp:
                 pub_btn.click(safe(do_publish), None, status)
         return ui
 
-    def launch(self, share=True, **kwargs):
+    def launch(self, share=True, password=None, user="w12", **kwargs):
+        """A felület indítása. A nyilvános gradio.live linket jelszó védi: a jelszó a Colab Secrets `UI_PASSWORD`
+        titka (vagy a `password` paraméter). Jelszó nélkül csak figyelmeztetéssel indul, mert a linket ismerő
+        bárki közzétehetne a GITHUB_TOKEN-nel."""
+        password = password or colab_secret("UI_PASSWORD")
+        if password:
+            kwargs.setdefault("auth", (user, password))
+            kwargs.setdefault("auth_message", "W12 trendfigyelő – add meg a felhasználónevet és a jelszót.")
+            print(f"A felület jelszóval védett (felhasználónév: {user}).")
+        else:
+            print("FIGYELEM: nincs UI_PASSWORD a Colab Secrets fülön, a felület jelszó nélkül, bárki számára elérhető.")
         self.ui = self.build_ui()
         return self.ui.launch(share=share, **kwargs)
