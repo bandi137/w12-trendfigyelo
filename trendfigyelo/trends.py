@@ -120,24 +120,47 @@ def style_table(table, n=8):
             .set_table_styles([{"selector": "th", "props": "text-align: left;"}]))
 
 
-def plot_trends(share, growth, names, topic_ids, category, path=None, n=6):
-    """A leggyorsabban növő n téma havi részaránya, a jelmagyarázatban a témanevekkel."""
+def plot_trends(share, growth, names, topic_ids, category, path=None, n=6, window=3):
+    """A leggyorsabban növő n téma havi részaránya (a webes jelentés grafikonjának álló változata).
+
+    A legjobb 3 téma színes és vastag (mögötte halványan a nyers havi érték), a többi halványszürke; a nevek a
+    vonalak végén állnak; az első és az utolsó `window` hónap sávval jelölve (a növekedés ezek átlagának hányadosa)."""
     import matplotlib.pyplot as plt
-    top = topic_ids[:n]
-    smooth = (share[top] * 100).rolling(2, min_periods=1).mean()   # 2 havi mozgóátlag a zaj csökkentésére
-    fig, ax = plt.subplots(figsize=(12, 5.5))
-    for t in top:
-        label = textwrap.fill(names[t]["nev"], 38) + f"  ({growth[t]:.1f}×)"
-        ax.plot(smooth.index, smooth[t], marker="o", lw=2.2, label=label)
-    ax.set_title(f"A leggyorsabban növő témák – arXiv {category}", fontsize=14, loc="left")
+    from .report import GREY, N_HIGHLIGHT, PALETTE, short_name, spread_labels
+    top = list(topic_ids[:n])
+    raw = share[top] * 100
+    smooth = raw.rolling(2, min_periods=1).mean()               # 2 havi mozgóátlag a zaj csökkentésére
+    x = list(range(len(smooth)))
+    ymax = float(max(smooth.max().max(), raw[top[:N_HIGHLIGHT]].max().max()))
+    fig, ax = plt.subplots(figsize=(12, 5.5 + 0.12 * max(0, len(top) - 8)))
+    for lo, hi, label in ((-0.5, window - 0.5, "bázis"), (len(x) - window - 0.5, len(x) - 0.5, "összehasonlítás")):
+        ax.axvspan(lo, hi, color="grey", alpha=0.10, lw=0)
+        ax.text((lo + hi) / 2, ymax * 1.12, f"{label} ({window} hó)", ha="center", va="top", fontsize=9, color="#666")
+    for rank in range(len(top) - 1, -1, -1):                    # a kiemeltek kerüljenek legfelülre
+        t = top[rank]
+        strong = rank < N_HIGHLIGHT
+        color = PALETTE[rank] if strong else GREY
+        if strong:
+            ax.plot(x, raw[t], "o", ms=3.5, color=color, alpha=0.35, lw=0)
+        ax.plot(x, smooth[t], color=color, lw=2.8 if strong else 1.3, alpha=1 if strong else 0.75)
+    ys = spread_labels([float(smooth[t].iloc[-1]) for t in top], gap=0.055 * ymax, top=ymax * 1.05)
+    for rank, t in enumerate(top):
+        strong = rank < N_HIGHLIGHT
+        ax.annotate(f"{short_name(names[t]['nev'])}  {growth[t]:.1f}×", (x[-1], ys[rank]), xytext=(8, 0),
+                    textcoords="offset points", va="center", fontsize=10 if strong else 9,
+                    fontweight="bold" if strong else "normal", color=PALETTE[rank] if strong else "#666")
+    ax.set_title(f"A leggyorsabban növő témák – arXiv {category}", fontsize=14, loc="left", pad=22)
+    ax.text(0, 1.015, f"vonal: 2 havi mozgóátlag · pontok: havi nyers érték · a szám a növekedés "
+                      f"(utolsó {window} hó / első {window} hó)", transform=ax.transAxes, fontsize=9, color="#666")
+    ax.set_xticks(x)
+    ax.set_xticklabels(list(smooth.index), rotation=45, ha="right")
+    ax.set_xlim(-0.5, len(x) - 0.5)
+    ax.set_ylim(0, ymax * 1.15)
     ax.set_ylabel("A havi cikkek aránya (%)")
-    ax.set_xlabel("")
-    ax.set_ylim(bottom=0)
     ax.grid(axis="y", alpha=0.3)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), frameon=False, fontsize=9.5, labelspacing=1.1)
-    plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
+    fig.subplots_adjust(right=0.72)                              # hely a feliratoknak
     if path:
         plt.savefig(path, dpi=150, bbox_inches="tight")
     return fig

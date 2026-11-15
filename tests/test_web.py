@@ -135,3 +135,20 @@ def test_figure_follows_n_show(app):
     app.s["n_show"] = 2
     assert len(app.figure().data) == 2
     assert app.build_html().count("Téma ") >= 2          # a jelentés is ugyanennyi témát használ
+
+
+def test_spread_labels_no_overlap_and_names_short():
+    from trendfigyelo.report import short_name, spread_labels
+    out = spread_labels([10.0, 10.1, 10.2, 3.0], gap=1.0, top=11.0)
+    assert out[3] == 3.0 and sorted(out)[-1] <= 11.0
+    s = sorted(out)
+    assert all(b - a >= 1.0 - 1e-9 for a, b in zip(s, s[1:]))
+    assert short_name("Tudásdesztilláció (Knowledge distillation)", 34) == "Tudásdesztilláció"
+    assert len(short_name("x" * 80)) <= 34
+
+
+def test_figure_highlights_top_three_and_labels(app):
+    app.compute_trends(4)
+    fig = app.figure(4)
+    assert len(fig.layout.annotations) >= 4 + 2          # 4 felirat + 2 sáv
+    assert fig.layout.showlegend is False

@@ -11,8 +11,7 @@ from datetime import datetime
 import pandas as pd
 
 ARXIV_REF = re.compile(r"\[(\d{4}\.\d{4,5})\]")
-PALETTE = ["#2a6fdb", "#e0663a", "#2e9e6b", "#a64ca6", "#c9a227", "#3aa5c4", "#d1495b", "#6b7a8f",
-           "#8c564b", "#5b8c2a", "#e377c2", "#17becf", "#7f5fd0", "#b5651d", "#3d4b8f"]   # 15 szín: a felület max. 15 témát mutat
+PALETTE = ["#2a6fdb", "#e0663a", "#2e9e6b", "#a64ca6", "#c9a227", "#3aa5c4", "#d1495b", "#6b7a8f"]
 
 
 def arxiv_url(paper_id):
@@ -45,24 +44,85 @@ def md_lite(text):
     return "\n".join(out)
 
 
-def trend_figure(share, growth, names, topic_ids, category, n=6):
-    """Interaktív Plotly-grafikon a leggyorsabban növő n téma havi részarányáról (2 havi mozgóátlag)."""
+GREY = "#9aa3ad"
+N_HIGHLIGHT = 3     # ennyi legjobban növő téma kap színt és vastag vonalat, a többi halványszürke
+
+
+def spread_labels(values, gap, top=None):
+    """Feliratok függőleges helyzete úgy, hogy ne fedjék egymást: a szomszédos feliratok legalább `gap`
+    távolságra kerülnek. Bemenet és kimenet ugyanabban a sorrendben; `top`: a legmagasabb megengedett hely."""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    pos = {}
+    prev = None
+    for i in order:
+        pos[i] = values[i] if prev is None else max(values[i], prev + gap)
+        prev = pos[i]
+    if top is not None and order and pos[order[-1]] > top:        # túllógtunk felül: visszatoljuk lefelé
+        nxt = top
+        for i in reversed(order):
+            pos[i] = min(pos[i], nxt)
+            nxt = pos[i] - gap
+    return [pos[i] for i in range(len(values))]
+
+
+def short_name(name, n=34):
+    """Rövid felirat: ha hosszú, előbb az angol zárójeles rész marad ki (a teljes név az egérmutatóra látszik)."""
+    if len(name) > n:
+        name = re.sub(r"\s*\([^)]*\)\s*$", "", name) or name
+    return textwrap.shorten(name, n, placeholder="…")
+
+
+def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
+    """Interaktív Plotly-grafikon a leggyorsabban növő n téma havi részarányáról.
+
+    A legjobb N_HIGHLIGHT téma színes és vastag (mögötte halványan a nyers havi érték), a többi halványszürke;
+    a nevek a vonalak végén állnak (nincs külön jelmagyarázat); az első és az utolsó `window` hónap sávval jelölve,
+    mert a növekedés ezek átlagának hányadosa. A vonalak 2 havi mozgóátlagok."""
     import plotly.graph_objects as go
-    top = topic_ids[:n]
-    smooth = (share[top] * 100).rolling(2, min_periods=1).mean()
+    top = list(topic_ids[:n])
+    raw = share[top] * 100
+    smooth = raw.rolling(2, min_periods=1).mean()
+    months = list(smooth.index)
     fig = go.Figure()
-    for i, t in enumerate(top):
+
+    for pos, label, x0, x1 in (("first", "bázis", -0.5, window - 0.5),
+                               ("last", "összehasonlítás", len(months) - window - 0.5, len(months) - 0.5)):
+        fig.add_vrect(x0=x0, x1=x1, fillcolor="rgba(128,128,128,0.10)", line_width=0, layer="below",
+                      annotation_text=f"{label} ({window} hó)", annotation_position="top left",
+                      annotation_font=dict(size=11, color="#7a7f87"))
+
+    for rank in range(len(top) - 1, -1, -1):          # a kiemeltek kerüljenek legfelülre
+        t = top[rank]
+        strong = rank < N_HIGHLIGHT
+        color = PALETTE[rank] if strong else GREY
+        hover = html.escape(textwrap.shorten(names[t]["nev"], 60)) + f" ({growth[t]:.1f}×)"
+        if strong:
+            fig.add_trace(go.Scatter(x=months, y=raw[t].round(2), mode="markers", showlegend=False, hoverinfo="skip",
+                                     marker=dict(size=5, color=color, opacity=0.35)))
         fig.add_trace(go.Scatter(
-            x=list(smooth.index), y=smooth[t].round(2), mode="lines+markers",
-            name="<br>".join(textwrap.wrap(f"{names[t]['nev']} ({growth[t]:.1f}×)", 42)),
-            line=dict(width=2.5, color=PALETTE[i % len(PALETTE)]), marker=dict(size=6),
-            hovertemplate="%{x}: %{y:.1f}%<extra>" + html.escape(textwrap.shorten(names[t]["nev"], 50)) + "</extra>"))
+            x=months, y=smooth[t].round(2), mode="lines", showlegend=False, name=hover,
+            line=dict(width=3.2 if strong else 1.6, color=color, shape="spline", smoothing=0.6),
+            opacity=1 if strong else 0.7,
+            hovertemplate="%{x}: %{y:.1f}%<extra>" + hover + "</extra>"))
+
+    ymax = float(max(smooth.max().max(), raw[top[:N_HIGHLIGHT]].max().max()))
+    ys = spread_labels([float(smooth[t].iloc[-1]) for t in top], gap=0.055 * ymax, top=ymax * 1.05)
+    for rank, t in enumerate(top):
+        strong = rank < N_HIGHLIGHT
+        fig.add_annotation(x=months[-1], y=ys[rank], xanchor="left", xshift=8, showarrow=False, align="left",
+                           text=(f"<b>{html.escape(short_name(names[t]['nev']))}</b>" if strong
+                                 else html.escape(short_name(names[t]["nev"]))) + f"  {growth[t]:.1f}×",
+                           font=dict(size=12 if strong else 11, color=PALETTE[rank] if strong else "#7a7f87"))
+
     fig.update_layout(
-        title=dict(text=f"A leggyorsabban növő témák – arXiv {category}", x=0, font=dict(size=16)),
-        yaxis=dict(title="A havi cikkek aránya (%)", rangemode="tozero", gridcolor="rgba(128,128,128,0.25)"),
-        xaxis=dict(type="category", tickangle=-45, showgrid=False),
-        legend=dict(orientation="h", yanchor="top", y=-0.3, x=0, font=dict(size=12)),
-        margin=dict(l=60, r=20, t=50, b=20), height=520 + 30 * max(0, len(top) - 6), hovermode="x unified",
+        title=dict(text=f"A leggyorsabban növő témák – arXiv {category}"
+                        "<br><sup>vonal: 2 havi mozgóátlag · pontok: havi nyers érték · a szám a növekedés "
+                        f"(utolsó {window} hó / első {window} hó)</sup>", x=0, font=dict(size=16)),
+        yaxis=dict(title="A havi cikkek aránya (%)", rangemode="tozero", gridcolor="rgba(128,128,128,0.2)",
+                   range=[0, ymax * 1.15], zeroline=False),
+        xaxis=dict(type="category", tickangle=-45, showgrid=False, range=[-0.5, len(months) - 0.5]),
+        margin=dict(l=60, r=270, t=80, b=20), height=500 + 14 * max(0, len(top) - 8),
+        hovermode="closest", showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#7a7f87"))
     return fig
 
