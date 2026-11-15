@@ -2,13 +2,23 @@
 
 RAG_PROMPT = """Kutatási asszisztens vagy. Kizárólag az alábbi arXiv-cikkek alapján válaszolj.
 Minden állítás után tedd zárójelbe a forrás azonosítóját, pl. [2501.01234].
-Ha a cikkekből nem derül ki a válasz, mondd meg őszintén. Válaszolj a kérdés nyelvén, legfeljebb 200 szóban.
+Ha a cikkekből nem derül ki a válasz, mondd meg őszintén. Legfeljebb 200 szóban válaszolj.
 
 CIKKEK:
 {context}
 
 KÉRDÉS: {question}
+
+{language_rule}
 VÁLASZ:"""
+
+# A válasz nyelve a kérdés nyelve. A promptot magyarul írtuk, a cikkek angolok, ezért a modell magától mindig
+# magyarul válaszolt; a nyelvet ezért a kód állapítja meg (rag.detect_language), és külön, a célnyelven írt sor kéri.
+LANGUAGE_RULES = {
+    "hu": "A válasz nyelve: magyar. A cikkek angolul vannak, de a választ magyarul írd (az angol szakkifejezések maradhatnak).",
+    "en": "Answer language: English. The question is in English, so write the ENTIRE answer in English, "
+          "even though the instructions above are in Hungarian.",
+}
 
 NAMING_PROMPT = """Egy arXiv-trendfigyelő témáit kell elnevezned ({cat} kategória). Minden témához megkapod
 a legjellemzőbb kulcsszavakat és néhány friss cikkcímet.

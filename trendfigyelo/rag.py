@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from .llm import generate
-from .prompts import RAG_PROMPT
+from .prompts import LANGUAGE_RULES, RAG_PROMPT
 
 
 def retrieve(df, emb, query_vec, k=5, month_from=None):
@@ -19,9 +19,23 @@ def retrieve(df, emb, query_vec, k=5, month_from=None):
     return hits
 
 
+HU_CHARS = set("áéíóöőúüűÁÉÍÓÖŐÚÜŰ")
+HU_WORDS = {"az", "és", "hogy", "milyen", "hogyan", "miért", "melyik", "melyek", "mit", "mik", "mi", "vannak",
+            "van", "nem", "egy", "vagy", "lehet", "szerint", "kapcsolatban", "mennyire", "hol", "mikor", "kik",
+            "kell", "mire", "miben", "között", "alapján", "mostanában", "mely", "miről", "ezek", "ilyen"}
+
+
+def detect_language(question):
+    """'hu', ha a kérdés magyar (ékezetes magyar betű vagy tipikus magyar szó van benne), különben 'en'."""
+    if any(ch in HU_CHARS for ch in question):
+        return "hu"
+    words = set(re.findall(r"[a-z]+", question.lower()))
+    return "hu" if words & HU_WORDS else "en"
+
+
 def build_prompt(question, hits, template=RAG_PROMPT):
     context = "\n\n".join(f"[{r.id}] {r.title} ({r.month})\n{r.abstract}" for r in hits.itertuples())
-    return template.format(context=context, question=question)
+    return template.format(context=context, question=question, language_rule=LANGUAGE_RULES[detect_language(question)])
 
 
 def check_citations(answer, hits):

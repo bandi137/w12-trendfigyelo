@@ -192,3 +192,19 @@ def test_shipped_questions_file_loads():
     import pathlib
     path = pathlib.Path(__file__).resolve().parents[1] / "eval" / "kerdesek.csv"
     assert tf.load_questions(str(path)) is not None
+
+
+def test_answer_language_follows_question():
+    import pandas as pd
+    hits = pd.DataFrame([dict(id="2501.00001", title="T", month="2025-11", abstract="a", score=0.9)])
+    for q, lang in [("What are recent approaches to evaluating LLM agents?", "en"),
+                    ("How is hallucination reduced in vision-language models?", "en"),
+                    ("Is it possible to translate low-resource languages?", "en"),
+                    ("Milyen módszereket javasolnak a hallucináció csökkentésére?", "hu"),
+                    ("Hogyan csokkentik a hallucinaciokat a nyelvi modellek", "hu"),
+                    ("Mi a RAG?", "hu")]:
+        assert tf.detect_language(q) == lang, q
+        p = tf.build_prompt(q, hits)
+        assert ("Answer language: English" in p) == (lang == "en")
+        assert ("A válasz nyelve: magyar" in p) == (lang == "hu")
+        assert "{" not in p.split("KÉRDÉS:")[1]
