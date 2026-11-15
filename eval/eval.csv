@@ -1,0 +1,21 @@
+kérdés,készítette,hit@1,hit@5,hit@10
+"Hogyan lehet egy nyelvi modell jogi érvelésében külön vizsgálni a jogi kérdések lefedettségét és az érvelés helyességét, és hogyan hat ezekre a RAG, illetve a rubrikákra épülő megerősítéses tanítás?",SuleSz,1,1,1
+"Mit lehet tenni, ha az angol–maráthi gépi fordító félreérti a hiányos vagy hibás központozású mondatokat?",SuleSz,1,1,1
+"Milyen megoldásokkal lehet kis nyelvi modellekből helyben futó, eszközöket használó autonóm ügynököt építeni?",SuleSz,0,1,1
+"Hogyan vizsgálható, hogy egy képet értelmező nyelvi modell a látott bizonyítékot követi-e, amikor az ellentmond a hétköznapi tudásának?",SuleSz,0,0,0
+"Van olyan eszköz a kitalált tudományos hivatkozások ellenőrzésére, amely internetkapcsolat és GPU nélkül is futtatható?",SuleSz,1,1,1
+"Hogyan javítható a többnyelvű következtetés, ha nincsenek helyes válaszokat tartalmazó tanítópéldák és párhuzamos többnyelvű adatok?",SuleSz,0,0,0
+"Hogyan maradhatnak a személyes adatok a saját eszközön úgy, hogy egy külső LLM-nek küldött kérdés az egyszerű kitakaráshoz képest jobban megőrizze az értelmét?",SuleSz,0,0,0
+"Miért járhat több hallucinációval a szigorúbb differenciális adatvédelem egy nyelvi modellnél, és milyen szerepe van ebben a tanítóadatokban szereplő tények gyakoriságának?",SuleSz,1,1,1
+"Hogyan lehet beszédet úgy másik nyelvre fordítani, hogy a teljes hossz mellett a fontosabb belső szünetek időzítése is megmaradjon?",SuleSz,0,1,1
+"Egy pruninggal kisebbített nyelvi modell első válasza gyakrabban hibás. Ebből következik-e, hogy elvesztette a korábbi következtetési képességét?",SuleSz,0,0,0
+"How do studies of text-anonymization metrics connect privacy-risk measurement with HIPAA, GDPR and users' expectations?",SuleSz,1,1,1
+What can a RAG system do when highly relevant but near-duplicate passages waste its context-token budget?,SuleSz,1,1,1
+How can sensitive text be transformed before it is sent to a black-box LLM API while still allowing the model to process it and the client to recover the original text?,SuleSz,1,1,1
+What types of text should a benchmark include to test false and synthetic content detection across low-resource languages?,SuleSz,1,1,1
+"How do LLM essay graders differ from human raters when scoring grammar and conventions, and what does the research suggest about prompt length and bias correction?",SuleSz,1,1,1
+"How can on-policy distillation use a black-box teacher without access to token logits, while avoiding unreliable supervision and policy collapse?",SuleSz,0,1,1
+Why can sentence-level translation benchmarks miss important trade-offs when deploying quantized models for document translation?,SuleSz,1,1,1
+How can a RAG retriever select documents under homomorphic encryption without performing encrypted top-k ranking or an interactive retrieval protocol?,SuleSz,1,1,1
+How can a RAG pipeline defend against poisoned passages that are designed to be retrieved and steer its answers?,SuleSz,0,1,1
+"When unlearning a fact in every language is too costly, how can a model choose a limited set of training languages to reduce access to that fact in other languages?",SuleSz,1,1,1
