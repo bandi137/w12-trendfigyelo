@@ -1,6 +1,13 @@
 # W12 – Kutatási trendfigyelő RAG-gal
 
-**Tárgy:** Alkalmazott mesterségesintelligencia-modellek (BME) · **Leadás:** 2026. november 16. · **Repó:** https://github.com/bandi137/w12-trendfigyelo
+**Tárgy:** Alkalmazott mesterségesintelligencia-modellek (BME) · **Leadás:** 2026. november 16.
+
+| | |
+|---|---|
+| **Git-repó** | https://github.com/bandi137/w12-trendfigyelo |
+| **Közzétett jelentés (statikus HTML, GitHub Pages)** | https://bandi137.github.io/w12-trendfigyelo/ |
+| **Webes felület (Gradio)** | GRADIO_LINK_IDE – jelszóval védett, felhasználónév `w12`; a link csak a futó Colab-munkamenet idejére él, minden indításnál új. Ha nem működik, a notebook 7. szakaszát futtatva új link készül. |
+| **Notebook** | [megnyitás Colabban](https://colab.research.google.com/github/bandi137/w12-trendfigyelo/blob/main/W12_trendfigyelo_rag.ipynb) |
 
 ## 1. A feladat
 
