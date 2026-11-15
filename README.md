@@ -7,6 +7,8 @@ absztraktjaiból kérdésekre válaszol forrásmegjelöléssel, és kimutatja a 
 
 **Legfrissebb jelentés:** https://bandi137.github.io/w12-trendfigyelo/ · **Hol tartunk:** lásd a [folytatási jegyzetet](W12_folytatas.md).
 
+**Dokumentáció a beadáshoz:** [DOKUMENTACIO.md](DOKUMENTACIO.md)
+
 ## Készítők
 
 Sümegi András ([bandi137](https://github.com/bandi137)), Süle Szilvia ([SuleSz](https://github.com/SuleSz))
