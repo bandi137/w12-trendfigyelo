@@ -11,7 +11,8 @@ from datetime import datetime
 import pandas as pd
 
 ARXIV_REF = re.compile(r"\[(\d{4}\.\d{4,5})\]")
-PALETTE = ["#2a6fdb", "#e0663a", "#2e9e6b", "#a64ca6", "#c9a227", "#3aa5c4", "#d1495b", "#6b7a8f"]
+PALETTE = ["#2a6fdb", "#e0663a", "#2e9e6b", "#a64ca6", "#c9a227", "#3aa5c4", "#d1495b", "#6b7a8f",
+           "#8c564b", "#5b8c2a", "#e377c2", "#17becf", "#7f5fd0", "#b5651d", "#3d4b8f"]   # 15 szín: a felület max. 15 témát mutat
 
 
 def arxiv_url(paper_id):
@@ -61,7 +62,7 @@ def trend_figure(share, growth, names, topic_ids, category, n=6):
         yaxis=dict(title="A havi cikkek aránya (%)", rangemode="tozero", gridcolor="rgba(128,128,128,0.25)"),
         xaxis=dict(type="category", tickangle=-45, showgrid=False),
         legend=dict(orientation="h", yanchor="top", y=-0.3, x=0, font=dict(size=12)),
-        margin=dict(l=60, r=20, t=50, b=20), height=520, hovermode="x unified",
+        margin=dict(l=60, r=20, t=50, b=20), height=520 + 30 * max(0, len(top) - 6), hovermode="x unified",
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#7a7f87"))
     return fig
 

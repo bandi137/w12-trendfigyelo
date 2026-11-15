@@ -126,3 +126,12 @@ def test_ui_builds(app):
     pytest.importorskip("gradio")
     ui = app.build_ui()
     assert ui is not None
+
+
+def test_figure_follows_n_show(app):
+    app.compute_trends(4)
+    assert len(app.figure().data) == 4                   # n_show = 4
+    assert len(app.figure(3).data) == 3
+    app.s["n_show"] = 2
+    assert len(app.figure().data) == 2
+    assert app.build_html().count("Téma ") >= 2          # a jelentés is ugyanennyi témát használ

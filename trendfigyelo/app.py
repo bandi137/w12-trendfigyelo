@@ -70,9 +70,11 @@ class TrendApp:
         self.summary = ""                # a régi összefoglaló már nem a mostani témákról szól
         return table
 
-    def figure(self):
+    def figure(self, n=None):
+        """A grafikon alapból annyi témát mutat, amennyi a táblázatban is van (n_show)."""
         t = self.trends
-        return report.trend_figure(t["share"], t["growth"], t["names"], t["ids"], self.s["category"])
+        return report.trend_figure(t["share"], t["growth"], t["names"], t["ids"], self.s["category"],
+                                   n=int(n or self.s["n_show"]))
 
     def summarize(self):
         if self.trends is None:
@@ -181,7 +183,15 @@ class TrendApp:
                     self.s["n_show"] = int(ns)
                     t = self.compute_trends(int(nt))
                     return self.figure(), t[view_cols].head(int(ns)), ""
+
+                def do_show(ns):
+                    """A megjelenített témák számának változtatása nem számol újra: ugyanazokból a témákból mutat többet/kevesebbet."""
+                    self.s["n_show"] = int(ns)
+                    if self.trends is None:
+                        return gr.update(), gr.update()
+                    return self.figure(), self.trends["table"][view_cols].head(int(ns))
                 trend_btn.click(safe(do_trends), [n_topics, n_show], [plot, table, summary])
+                n_show.release(safe(do_show), n_show, [plot, table])
                 sum_btn.click(safe(self.summarize), None, summary)
 
             with gr.Tab("Kiértékelés"):
