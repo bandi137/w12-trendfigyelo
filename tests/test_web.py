@@ -43,7 +43,7 @@ def test_app_report_contains_everything_and_escapes(app):
     app.ask("speech recognition audio")
     app.run_eval()
     html = app.build_html(archive=["2026-11-12", "2026-11-13"])
-    for part in ('id="trendek"', 'id="terkep"', 'href="#terkep"', "plotly_click", 'id="osszefoglalo"', 'id="kerdesek"', 'id="kiertekeles"', 'id="archiv"',
+    for part in ('id="trendek"', 'id="terkep"', 'href="#terkep"', "plotly_click", "lejátszás", 'id="osszefoglalo"', 'id="kerdesek"', 'id="kiertekeles"', 'id="archiv"',
                  'href="archiv/2026-11-13.html"', "Süle Szilvia", "cdn.plot.ly"):
         assert part in html, part
     assert "<img src=x" not in html                        # a cikkcím nem futtatható HTML-ként (a térképen sem)
@@ -180,6 +180,11 @@ def test_map_coords_cached_and_recomputed(corpus, tmp_path):  # noqa: F811
     np.save(tmp_path / "terkep.npy", np.zeros_like(xy))                      # ha a cikklista változik: újraszámol
     other = tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), method="tsne")
     assert other.shape == (len(df) - 1, 2) and other.any()
+    labels = df.true.astype("category").cat.codes.to_numpy()                 # a témák is számítanak: újraszámol
+    sup = tf.map_coords(emb, df.id, str(tmp_path), labels=labels, method="tsne")
+    assert not np.array_equal(sup, xy)
+    spread = lambda c: np.mean([c[labels == t].std(axis=0).mean() for t in np.unique(labels)])  # noqa: E731
+    assert spread(sup) < spread(xy)                                           # a témák összébb húzódnak
 
 
 def test_topic_map_layers_colors_labels(corpus):  # noqa: F811
@@ -193,7 +198,11 @@ def test_topic_map_layers_colors_labels(corpus):  # noqa: F811
     months = sorted(df.month.unique())
     assert [tr.name for tr in fig.data] == months                              # hónaponként egy réteg
     assert sum(len(tr.x) for tr in fig.data) == len(df)
-    assert len(fig.frames) == len(months) + 1 and fig.frames[0].name == "mind"  # "mind" + minden hónap
+    steps = fig.layout.sliders[0].steps                                        # "mind" + minden hónap
+    assert [st.label for st in steps] == ["mind"] + months and not fig.frames   # restyle, nem animáció (Plotly 2.x)
+    assert all(st.method == "restyle" and len(st.args[0]["marker.opacity"]) == len(months) for st in steps)
+    assert not fig.layout.updatemenus                                         # a lejátszás gomb csak a jelentésben
+    assert tf.topic_map(xy, df, names, growth, "cs.CL", play_button=True).layout.updatemenus[0].buttons[0].method == "skip"
     assert len(fig.layout.annotations) == len(growth)                         # minden témának van neve
     assert sum(a.name == "kiemelt" for a in fig.layout.annotations) == 3
     assert all("<b>Téma" not in a.text for a in fig.layout.annotations)       # a név escape-elve

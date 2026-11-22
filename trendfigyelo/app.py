@@ -78,14 +78,16 @@ class TrendApp:
         return report.trend_figure(t["share"], t["growth"], t["names"], t["ids"], self.s["category"],
                                    n=int(n or self.s["n_show"]))
 
-    def map_figure(self):
-        """Tématérkép: a koordinátákat elsőre kiszámolja (vagy a Drive-ról tölti), a színt a mostani témák adják."""
+    def map_figure(self, play_button=False):
+        """Tématérkép a mostani témákkal. A koordinátákat a témák is alakítják (felügyelt UMAP), ezért új témáknál
+        újraszámolódnak (1–2 perc); különben a Drive-ról töltődnek. play_button: csak a HTML-jelentésben működik."""
         if self.trends is None:
             self.compute_trends()
-        if self.coords is None:
-            self.coords = map_coords(self.emb, self.df.id, self.data_dir)
+        key = tuple(self.df.topic)
+        if self.coords is None or self.coords[0] != key:
+            self.coords = (key, map_coords(self.emb, self.df.id, self.data_dir, labels=self.df.topic.to_numpy()))
         t = self.trends
-        return topic_map(self.coords, self.df, t["names"], t["growth"], self.s["category"])
+        return topic_map(self.coords[1], self.df, t["names"], t["growth"], self.s["category"], play_button=play_button)
 
     def summarize(self):
         if self.trends is None:
@@ -121,7 +123,7 @@ class TrendApp:
             self.summarize()
         return report.build_report(self.meta(), self.trends["table"], self.figure(), self.summary, self.rag.log,
                                    self.df, self.eval_df, self.eval_summary, archive, self.s["n_show"], archive_prefix,
-                                   map_fig=self.map_figure())
+                                   map_fig=self.map_figure(play_button=True))
 
     def preview(self):
         """A jelentés mentése a Drive-ra (letölthető előnézet), közzététel nélkül."""
@@ -181,9 +183,9 @@ class TrendApp:
                          [q, k, since], answer)
 
             with gr.Tab("Tématérkép"):
-                gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek. A szín a cikk témájának "
-                            "növekedése (piros: nő, kék: csökken). A csúszkával egy hónap cikkei emelhetők ki, a ▶ gomb "
-                            "végigjátssza a hónapokat. Először a koordináták számítása 1–2 perc, utána a Drive-ról töltődik. "
+                gr.Markdown("Minden pont egy cikk, egy sziget egy téma; a hasonló témák egymás közelében. A szín a cikk témájának "
+                            "növekedése (piros: nő, kék: csökken). A csúszkával egy hónap cikkei emelhetők ki (a lejátszás a "
+                            "közzétett jelentésben működik). Új témáknál a térkép számítása 1–2 perc, utána a Drive-ról töltődik. "
                             "A **Témák számítása** gomb (Trendek fül) a térképet is frissíti.")
                 map_btn = gr.Button("Térkép rajzolása", variant="primary")
                 map_plot = gr.Plot(show_label=False)
