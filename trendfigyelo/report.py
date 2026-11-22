@@ -149,9 +149,10 @@ def _growth_cell(max_growth):
 
 
 def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, eval_df=None, eval_summary=None,
-                 archive=None, n_show=8, archive_prefix="archiv/"):
+                 archive=None, n_show=8, archive_prefix="archiv/", map_fig=None):
     """meta: dict(category, months, n_papers, downloaded, emb_model, llm_model, code_version, generated, authors, repo_url).
-    archive: korábbi jelentések dátumcímkéi; archive_prefix: "archiv/" a kezdőoldalon, "" az archív oldalakon."""
+    archive: korábbi jelentések dátumcímkéi; archive_prefix: "archiv/" a kezdőoldalon, "" az archív oldalakon.
+    map_fig: a tématérkép (tmap.topic_map), ha van."""
     papers = papers if papers is not None else pd.DataFrame(columns=["id", "title"])
     titles = dict(zip(papers.id.astype(str), papers.title)) if len(papers) else {}
     e = html.escape
@@ -171,6 +172,21 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
   {_table(top, ["név", "leírás", "kulcsszavak", "cikkek", "növekedés"],
           formats={"név": lambda v: f"<strong>{e(str(v))}</strong>", "növekedés": _growth_cell(float(top["növekedés"].max() or 1))},
           classes={"kulcsszavak": "muted small", "cikkek": "num", "növekedés": "growth"})}
+</section>""")
+
+    if map_fig is not None:
+        from .tmap import MAP_SCRIPT
+        map_html = map_fig.to_html(include_plotlyjs=False if fig is not None else "cdn", full_html=False,
+                                   auto_play=False, post_script=MAP_SCRIPT,
+                                   config={"displayModeBar": False, "responsive": True, "scrollZoom": False})
+        sections.append(f"""
+<section id="terkep">
+  <h2>Tématérkép</h2>
+  <p class="lead">Minden pont egy cikk. A cikkek vektorait a UMAP-módszer vetíti síkba, így a hasonló tartalmú cikkek
+  egymás mellé kerülnek. A szín a cikk témájának növekedése: piros, ha a téma részaránya nőtt, kék, ha csökkent.
+  A csúszkával egy hónap cikkei emelhetők ki, a ▶ gomb végigjátssza a hónapokat. Egy pontra mutatva látszik a cikk
+  címe, kattintásra megnyílik az arXivon.</p>
+  <div class="chart">{map_html}</div>
 </section>""")
 
     if summary:
@@ -198,7 +214,7 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
         links = "".join(f'<li><a href="{archive_prefix}{e(a)}.html">{e(a)}</a></li>' for a in sorted(archive, reverse=True))
         sections.append(f'<section id="archiv"><h2>Korábbi jelentések</h2><ul class="archive">{links}</ul></section>')
 
-    nav = "".join(f'<a href="#{i}">{t}</a>' for i, t in [("trendek", "Trendek"), ("osszefoglalo", "Összefoglaló"),
+    nav = "".join(f'<a href="#{i}">{t}</a>' for i, t in [("trendek", "Trendek"), ("terkep", "Tématérkép"), ("osszefoglalo", "Összefoglaló"),
                   ("kerdesek", "Kérdések"), ("kiertekeles", "Kiértékelés"), ("archiv", "Archívum")] if f'id="{i}"' in "".join(sections))
     return f"""<!doctype html>
 <html lang="hu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

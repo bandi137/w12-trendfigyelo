@@ -1,6 +1,7 @@
 """A webes felület, a HTML-jelentés és a közzététel tesztjei (hálózat és Colab nélkül)."""
 import types
 
+import numpy as np
 import pytest
 
 import trendfigyelo as tf
@@ -42,10 +43,11 @@ def test_app_report_contains_everything_and_escapes(app):
     app.ask("speech recognition audio")
     app.run_eval()
     html = app.build_html(archive=["2026-11-12", "2026-11-13"])
-    for part in ('id="trendek"', 'id="osszefoglalo"', 'id="kerdesek"', 'id="kiertekeles"', 'id="archiv"',
+    for part in ('id="trendek"', 'id="terkep"', 'href="#terkep"', "plotly_click", 'id="osszefoglalo"', 'id="kerdesek"', 'id="kiertekeles"', 'id="archiv"',
                  'href="archiv/2026-11-13.html"', "Süle Szilvia", "cdn.plot.ly"):
         assert part in html, part
-    assert "<img src=x" not in html                        # a cikkcím nem futtatható HTML-ként
+    assert "<img src=x" not in html                        # a cikkcím nem futtatható HTML-ként (a térképen sem)
+    assert html.count("cdn.plot.ly") == 1                   # a Plotly egyszer töltődik be a két grafikonhoz
     assert 'href="2026-11-12.html"' in app.build_html(archive=["2026-11-12"], archive_prefix="")
     assert app.preview().endswith("jelentes_elonezet.html")
 
@@ -166,3 +168,36 @@ def test_launch_requires_password_when_secret_set(app, monkeypatch):
     monkeypatch.setattr("trendfigyelo.app.colab_secret", lambda name: None)
     app.launch(share=False)
     assert "auth" not in seen
+
+
+def test_map_coords_cached_and_recomputed(corpus, tmp_path):  # noqa: F811
+    df, emb, _ = corpus
+    xy = tf.map_coords(emb, df.id, str(tmp_path), method="tsne")
+    assert xy.shape == (len(df), 2) and abs(xy.mean()) < 1e-6
+    assert (tmp_path / "terkep.npy").exists()
+    again = tf.map_coords(emb, df.id, str(tmp_path), method="tsne")          # a Drive-ról töltődik
+    assert np.array_equal(xy, again)
+    np.save(tmp_path / "terkep.npy", np.zeros_like(xy))                      # ha a cikklista változik: újraszámol
+    other = tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), method="tsne")
+    assert other.shape == (len(df) - 1, 2) and other.any()
+
+
+def test_topic_map_layers_colors_labels(corpus):  # noqa: F811
+    df, emb, _ = corpus
+    df = df.copy()
+    df["topic"], _ = tf.find_topics(emb, (df.title + ". " + df.abstract).values, n_topics=4)
+    share, growth = tf.topic_trends(df.month, df.topic)
+    names = {int(t): {"nev": f"<b>Téma {t}</b> (Topic {t})", "leiras": ""} for t in growth.index}
+    xy = np.random.default_rng(0).normal(size=(len(df), 2))
+    fig = tf.topic_map(xy, df, names, growth, "cs.CL")
+    months = sorted(df.month.unique())
+    assert [tr.name for tr in fig.data] == months                              # hónaponként egy réteg
+    assert sum(len(tr.x) for tr in fig.data) == len(df)
+    assert len(fig.frames) == len(months) + 1 and fig.frames[0].name == "mind"  # "mind" + minden hónap
+    assert len(fig.layout.annotations) == len(growth)                         # minden témának van neve
+    assert sum(a.name == "kiemelt" for a in fig.layout.annotations) == 3
+    assert all("<b>Téma" not in a.text for a in fig.layout.annotations)       # a név escape-elve
+    top = int(growth.index[0])                                                # a leggyorsabban növő téma piros
+    i = int(np.flatnonzero(df.topic.to_numpy() == top)[0])
+    tr = next(t for t in fig.data if t.name == df.month.iloc[i])
+    assert max(tr.marker.color) > 0 and tr.marker.cmin == -tr.marker.cmax

@@ -3,3 +3,4 @@ sentence-transformers
 google-genai
 gradio
 plotly
+umap-learn

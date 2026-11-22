@@ -5,7 +5,7 @@
 **W12 – Kutatási trendfigyelő RAG-gal.** Az arXiv egy kategóriájának (alapból `cs.CL`) elmúlt 12 havi
 absztraktjaiból kérdésekre válaszol forrásmegjelöléssel, és kimutatja a felfutó kutatási témákat.
 
-**Legfrissebb jelentés:** https://bandi137.github.io/w12-trendfigyelo/ · **Hol tartunk:** lásd a [folytatási jegyzetet](W12_folytatas.md).
+**Legfrissebb jelentés:** https://bandi137.github.io/w12-trendfigyelo/
 
 **Dokumentáció a beadáshoz:** [W12_DOCUMENTATION.md](W12_DOCUMENTATION.md)
 
@@ -24,8 +24,9 @@ Sümegi András ([bandi137](https://github.com/bandi137)), Süle Szilvia ([SuleS
 | `trendfigyelo/trends.py` | Témák (KMeans + c-TF-IDF kulcsszavak), havi trendek, LLM-es témanevek, táblázat, grafikon |
 | `trendfigyelo/prompts.py` | Az összes prompt |
 | `trendfigyelo/evaluate.py` | Kiértékelés (hit@1/5/10), tesztkérdések beolvasása |
-| `trendfigyelo/app.py` | Gradio webes felület: Kérdezz, Trendek, Kiértékelés, Közzététel |
-| `trendfigyelo/report.py` | Önálló HTML-jelentés (interaktív Plotly-grafikon) |
+| `trendfigyelo/app.py` | Gradio webes felület: Kérdezz, Tématérkép, Trendek, Kiértékelés, Közzététel |
+| `trendfigyelo/tmap.py` | Tématérkép: a cikkek 2D-s térképe (UMAP), a témák növekedése szerint színezve, hónapcsúszkával |
+| `trendfigyelo/report.py` | Önálló HTML-jelentés (interaktív Plotly-grafikonok) |
 | `trendfigyelo/publish.py` | Közzététel a GitHub Pages-re egyetlen commitban (GitHub API, token) |
 | `docs/` | A GitHub Pages weboldal; közzétételi útmutató: `docs/KOZZETETEL.md` |
 | `eval/kerdesek.csv` | Tesztkérdések a várt cikkekkel (útmutató: `eval/README.md`) |

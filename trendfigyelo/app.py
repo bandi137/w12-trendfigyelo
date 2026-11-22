@@ -11,6 +11,7 @@ from . import report
 from .evaluate import evaluate, load_questions
 from .data import download_dates
 from .publish import PublishError, list_archive, pages_url, publish_files
+from .tmap import map_coords, topic_map
 from .trends import find_topics, name_topics, summarize_trends, topic_trends, trend_table
 
 AUTHORS = "Sümegi András, Süle Szilvia"
@@ -41,6 +42,7 @@ class TrendApp:
         self.data_dir, self.repo_dir, self.repo, self.token_fn = data_dir, repo_dir, repo, token_fn
         self.s = dict(settings)          # category, months, emb_model, llm_model, n_topics, n_show, top_k
         self.trends, self.summary, self.eval_df, self.eval_summary = None, "", None, None
+        self.coords = None               # a tématérkép koordinátái (a Drive-on is tárolva)
 
     # --- műveletek (a felülettől függetlenül is hívhatók és tesztelhetők) ---------------------------
 
@@ -76,6 +78,15 @@ class TrendApp:
         return report.trend_figure(t["share"], t["growth"], t["names"], t["ids"], self.s["category"],
                                    n=int(n or self.s["n_show"]))
 
+    def map_figure(self):
+        """Tématérkép: a koordinátákat elsőre kiszámolja (vagy a Drive-ról tölti), a színt a mostani témák adják."""
+        if self.trends is None:
+            self.compute_trends()
+        if self.coords is None:
+            self.coords = map_coords(self.emb, self.df.id, self.data_dir)
+        t = self.trends
+        return topic_map(self.coords, self.df, t["names"], t["growth"], self.s["category"])
+
     def summarize(self):
         if self.trends is None:
             self.compute_trends()
@@ -109,7 +120,8 @@ class TrendApp:
         if not self.summary:
             self.summarize()
         return report.build_report(self.meta(), self.trends["table"], self.figure(), self.summary, self.rag.log,
-                                   self.df, self.eval_df, self.eval_summary, archive, self.s["n_show"], archive_prefix)
+                                   self.df, self.eval_df, self.eval_summary, archive, self.s["n_show"], archive_prefix,
+                                   map_fig=self.map_figure())
 
     def preview(self):
         """A jelentés mentése a Drive-ra (letölthető előnézet), közzététel nélkül."""
@@ -168,6 +180,15 @@ class TrendApp:
                 q.submit(safe(lambda qq, kk, mm: self.ask(qq, int(kk), None if mm == "(mind)" else mm)),
                          [q, k, since], answer)
 
+            with gr.Tab("Tématérkép"):
+                gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek. A szín a cikk témájának "
+                            "növekedése (piros: nő, kék: csökken). A csúszkával egy hónap cikkei emelhetők ki, a ▶ gomb "
+                            "végigjátssza a hónapokat. Először a koordináták számítása 1–2 perc, utána a Drive-ról töltődik. "
+                            "A **Témák számítása** gomb (Trendek fül) a térképet is frissíti.")
+                map_btn = gr.Button("Térkép rajzolása", variant="primary")
+                map_plot = gr.Plot(show_label=False)
+                map_btn.click(safe(self.map_figure), None, map_plot)
+
             with gr.Tab("Trendek"):
                 with gr.Row():
                     nt0, ns0 = int(self.s["n_topics"]), int(self.s["n_show"])
@@ -182,7 +203,7 @@ class TrendApp:
                 def do_trends(nt, ns):
                     self.s["n_show"] = int(ns)
                     t = self.compute_trends(int(nt))
-                    return self.figure(), t[view_cols].head(int(ns)), ""
+                    return self.figure(), t[view_cols].head(int(ns)), "", self.map_figure()
 
                 def do_show(ns):
                     """A megjelenített témák számának változtatása nem számol újra: ugyanazokból a témákból mutat többet/kevesebbet."""
@@ -190,7 +211,7 @@ class TrendApp:
                     if self.trends is None:
                         return gr.update(), gr.update()
                     return self.figure(), self.trends["table"][view_cols].head(int(ns))
-                trend_btn.click(safe(do_trends), [n_topics, n_show], [plot, table, summary])
+                trend_btn.click(safe(do_trends), [n_topics, n_show], [plot, table, summary, map_plot])
                 n_show.release(safe(do_show), n_show, [plot, table])
                 sum_btn.click(safe(self.summarize), None, summary)
 
