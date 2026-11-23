@@ -41,6 +41,7 @@ Sümegi András ([bandi137](https://github.com/bandi137)), Süle Szilvia ([SuleS
    számolódnak újra (mind), ha a cikklista vagy a modell változott.
 
 **Webes felület:** a notebook 7. szakasza elindítja (nyilvános `….gradio.live` link a Colab-munkamenet végéig).
+A felület jelszava a *Secrets* fül `UI_PASSWORD` titka (felhasználónév: `w12`).
 A *Közzététel* gombhoz kell egy `GITHUB_TOKEN` a *Secrets* fülön – útmutató: [`docs/KOZZETETEL.md`](docs/KOZZETETEL.md).
 
 **Kódfrissítés után** futtasd újra a notebook első celláját, majd az alatta lévőket (*Runtime → Run after*):

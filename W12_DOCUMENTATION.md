@@ -1,6 +1,6 @@
 # W12 – Kutatási trendfigyelő RAG-gal
 
-**Tárgy:** Alkalmazott mesterségesintelligencia-modellek (BME) · **Leadás:** 2026. november 16.
+**Tárgy:** Alkalmazott mesterségesintelligencia-modellek (BME) · **Leadás:** 2026. november 16. · **Frissítve:** 2026. november 23. (a határidő meghosszabbítása után; a változásokat a 4.7., az 5.10–5.11. és a 7. pont írja le)
 
 | | |
 |---|---|
@@ -21,8 +21,8 @@ A prototípus az arXiv `cs.CL` kategóriájának cikkcímeiből és absztraktjai
 
 | Készítő | Fő feladatok |
 |---|---|
-| **Sümegi András** | A kód és a notebook fejlesztésének összefogása (Claude Code-dal); adatgyűjtés, témacsoportosítás és trendág; a webes felület és a közzététel integrációja; GitHub-repó és GitHub Pages. |
-| **Süle Szilvia** | A RAG-ág kipróbálása és tesztelése; a 20 tesztkérdés és a várt cikkek összeállítása; a kiértékelés futtatása, 8 válasz kézi pontozása; tesztfuttatások, válaszok és képernyőképek rögzítése; a november 15-i közzététel; a kódhibák felderítése ([eval/errors.md](eval/errors.md)). |
+| **Sümegi András** | A kód és a notebook fejlesztésének összefogása (Claude Code-dal); adatgyűjtés, témacsoportosítás és trendág; a webes felület és a közzététel integrációja; GitHub-repó és GitHub Pages; a leadás után a tématérkép (4.7) kidolgozása és valódi adaton való hangolása. |
+| **Süle Szilvia** | A RAG-ág kipróbálása és tesztelése; a 20 tesztkérdés és a várt cikkek összeállítása; a kiértékelés futtatása, 8 válasz kézi pontozása; tesztfuttatások, válaszok és képernyőképek rögzítése; a november 15-i és 23-i közzététel; a kódhibák felderítése ([eval/errors.md](eval/errors.md)); a leadás utáni teljes ellenőrzés: kód, notebook, dokumentáció és közzétett jelentés, böngészős és mobilos próbákkal ([ellenőrzési összefoglaló, 2026-11-23](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)). |
 
 A megoldásról és az elakadásokról folyamatosan egyeztettünk. A GitHub biztosította a közös kód és az eredményfájlok átadását; a fejlesztési szakaszok közötti folytatást a Claude részösszefoglalói és a személyes megbeszélések segítették.
 
@@ -33,6 +33,8 @@ A kiadott feladatok közül ezt találtuk a legérdekesebbnek, és más szakter�
 Az első elképzelésünk egy állandóan elérhető webalkalmazás volt. A rendelkezésre álló tárhelyen nem volt GPU, és a kísérleti fázisban a működtetéshez kapcsolódó erőforrás- és tokenköltségeket is korlátozni akartuk. A saját gépen futó Python és az Ollamával használt helyi nyelvi modell továbbra is érdekes irány számunkra, de ennek kiépítését a házifeladat keretein túlmutató feladatnak tekintettük. Végül Google Colab-prototípust készítettünk: a notebook böngészőből használható, a vektorizáláshoz GPU rendelhető hozzá, a válaszokat pedig Gemini API-hívások állítják elő.
 
 A közös notebook és a GitHub mindkettőnk számára hozzáférhetővé tette a megoldást. A Colab-munkamenet megszűnése miatt a letöltött adatokat és a számított vektorokat Google Drive-on tároljuk. A Gradio-felület a futó munkamenethez kapcsolódik, a statikus HTML-jelentés pedig GitHub Pages-en is megtekinthető. A végső futásokban egységesen a `gemini-3.5-flash-lite` modellt használtuk.
+
+A november 16-i leadás után az oktató meghosszabbította a határidőt. A meglévő megoldást ekkor átnéztük azzal a céllal, hogy látványosabb és jobban áttekinthető legyen. Ebből a szakaszból a cikkek interaktív tématérképe valósult meg (4.7), valamint Szilvia független ellenőrzése a teljes megoldásról (4.6, 6). Az adatállomány és a keresés nem változott, így a kiértékelés eredményei is ugyanazok.
 
 ## 4. A megoldás
 
@@ -49,8 +51,10 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 → Gemini válasz forrásokkal          → havi részarány, növekedés
 → hivatkozás-ellenőrzés              → Gemini témanév + leírás + összefoglaló
         │                                  │
+        │                                  ├──► Tématérkép: UMAP 2D-vetítés → terkep.npy
+        │                                  │    (megjelenítéskor: témák összehúzása, széthúzás)
         └──────────► Gradio-felület ◄──────┘
-                     (Kérdezz · Trendek · Kiértékelés · Közzététel)
+                (Kérdezz · Tématérkép · Trendek · Kiértékelés · Közzététel)
                             │
                             ▼
                      statikus HTML-jelentés → GitHub Pages
@@ -66,19 +70,20 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 | Válasz | a kérdés nyelvén (a kód állapítja meg: magyar / angol), minden állítás után a forrás azonosítója; a hivatkozás-ellenőrző jelzi, ha a modell meg nem kapott azonosítóra hivatkozik |
 | Témák | KMeans, 25 téma; kulcsszavak class-based TF-IDF-fel (csak legalább 5 cikkben előforduló szavak) |
 | Növekedés | lásd 4.5 |
+| Tématérkép | felügyelet nélküli UMAP (`umap-learn`, koszinusz-távolság), a koordináták a Drive-on; a témák összehúzása megjelenítéskor, állítható erősséggel; interaktív Plotly-térkép hónapcsúszkával (lásd 4.7) |
 | Felület | Gradio (nyilvános `gradio.live` link, jelszóval védve: Colab Secrets `UI_PASSWORD`) |
 | Közzététel | a jelentés egyetlen commitban kerül a repó `docs/` mappájába a GitHub REST API-val (Colab Secrets: `GITHUB_TOKEN`); archívum dátum szerint |
-| Tesztek | 28 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
+| Tesztek | 32 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
 
 ### 4.2. A megoldás és az ellenőrzés dokumentumai
 
 - **Git-repozitórium:** https://github.com/bandi137/w12-trendfigyelo
 - **Notebook:** [W12_trendfigyelo_rag.ipynb](W12_trendfigyelo_rag.ipynb) ([megnyitás Colabban](https://colab.research.google.com/github/bandi137/w12-trendfigyelo/blob/main/W12_trendfigyelo_rag.ipynb))
-- **Python-csomag:** [trendfigyelo/](trendfigyelo/) – `data` (letöltés), `embed`, `rag`, `trends`, `prompts`, `llm`, `evaluate`, `app` (Gradio), `report` (HTML + grafikon), `publish`
-- **Közzétett jelentés:** https://bandi137.github.io/w12-trendfigyelo/ (archívum: [2026-11-13](docs/archiv/2026-11-13.html), [2026-11-15](docs/archiv/2026-11-15.html))
-- **Képernyőképek:** [screenshots/](screenshots/) – a trendek ([trends.png](screenshots/trends.png)), a kiértékelés ([evaluation.png](screenshots/evaluation.png)), egy angol válasz ([EN06_hard_answer.png](screenshots/EN06_hard_answer.png)), egy problémás magyar példa ([HU10_hard_answer.png](screenshots/HU10_hard_answer.png), [HU10_hard_answer_error.png](screenshots/HU10_hard_answer_error.png)), a betöltött tesztkérdések ([20_test_questions_loaded.png](screenshots/20_test_questions_loaded.png)), a közzététel ([publish.png](screenshots/publish.png)) és az első futás ([Colab v01](screenshots/W12_trendfigyelo_rag.ipynb%20-%20Colab%20v01%20elso%20futas.png)).
+- **Python-csomag:** [trendfigyelo/](trendfigyelo/) – `data` (letöltés), `embed`, `rag`, `trends`, `prompts`, `llm`, `evaluate`, `app` (Gradio), `report` (HTML + grafikon), `tmap` (tématérkép), `publish`
+- **Közzétett jelentés:** https://bandi137.github.io/w12-trendfigyelo/ (archívum: [2026-11-13](docs/archiv/2026-11-13.html), [2026-11-15](docs/archiv/2026-11-15.html), [2026-11-23](docs/archiv/2026-11-23.html))
+- **Képernyőképek:** [screenshots/](screenshots/) – a tématérkép a Gradio-felületen ([Topic_Map.png](screenshots/Topic_Map.png)), a trendek ([trends.png](screenshots/trends.png)), a kiértékelés ([evaluation.png](screenshots/evaluation.png)), egy angol válasz ([EN06_hard_answer.png](screenshots/EN06_hard_answer.png)), egy problémás magyar példa ([HU10_hard_answer.png](screenshots/HU10_hard_answer.png), [HU10_hard_answer_error.png](screenshots/HU10_hard_answer_error.png)), a betöltött tesztkérdések ([20_test_questions_loaded.png](screenshots/20_test_questions_loaded.png)), a közzététel ([publish.png](screenshots/publish.png)) és az első futás ([Colab v01](screenshots/W12_trendfigyelo_rag.ipynb%20-%20Colab%20v01%20elso%20futas.png)).
 - **Tesztkérdések és eredmények:** [eval/kerdesek.csv](eval/kerdesek.csv), [eval/eval.csv](eval/eval.csv), [eval/qa_naplo.csv](eval/qa_naplo.csv), [eval/qa_pontozas.csv](eval/qa_pontozas.csv), teljes példaválaszok: [test_questions/](test_questions/)
-- **Feltárt kódhibák:** [eval/errors.md](eval/errors.md)
+- **Feltárt kódhibák:** [eval/errors.md](eval/errors.md); a leadás utáni ellenőrzés: [eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)
 - **Közzétételi útmutató:** [docs/KOZZETETEL.md](docs/KOZZETETEL.md)
 
 ### 4.3. Promptok
@@ -95,12 +100,13 @@ A promptok a [trendfigyelo/prompts.py](trendfigyelo/prompts.py) fájlban találh
 
 A vizsgált állomány 4800 cikket tartalmaz, a `month` mező szerint 2025 novemberétől 2026 októberéig, havonta 400 bejegyzéssel. A címeket és absztraktokat az `intfloat/multilingual-e5-base` modell alakítja vektorokká. A válaszgenerálás alapbeállításban a kérdéshez legközelebbi öt cikket kapja meg; a trendág KMeans-csoportosítást és c-TF-IDF-kulcsszavakat használ.
 
-A közzétett jelentés (2026-11-15 18:38) futásának adatai:
+A jelenleg közzétett jelentés (2026. november 23., 11:23) futásának adatai. A leadáskor közzétett, november 15-i jelentés változatlanul elérhető az archívumban; a kettő ugyanabból az adatállományból készült, és ugyanazokat a témákat és kiértékelési eredményeket mutatja, az újban a tématérkép is szerepel.
 
 | | |
 |---|---|
 | Adat letöltve | 2026-11-12 (a jelentés fejlécében is szerepel) |
-| Kódverzió a közzétételkor | [`172b47e`](https://github.com/bandi137/w12-trendfigyelo/commit/172b47e) (a közzétételi commit: [`4f6cc83`](https://github.com/bandi137/w12-trendfigyelo/commit/4f6cc83)) |
+| Kódverzió a közzétételkor | [`4006a75`](https://github.com/bandi137/w12-trendfigyelo/commit/4006a75) (a közzétételi commit: [`fe96b7f`](https://github.com/bandi137/w12-trendfigyelo/commit/fe96b7f)); a november 15-i jelentésé [`172b47e`](https://github.com/bandi137/w12-trendfigyelo/commit/172b47e) |
+| Időpont | A jelentés láblécében 10:23 áll, mert a Colab-szerver órája UTC szerint jár; magyar idő szerint 11:23. |
 | Vektormodell | `intfloat/multilingual-e5-base` |
 | Nyelvi modell | `gemini-3.5-flash-lite` |
 | Beállítások | 12 hónap × 400 cikk, 25 téma, 5 átadott cikk, növekedési ablak 3 hónap |
@@ -129,6 +135,25 @@ A keresést 20, fele részben magyar, fele részben angol kérdésen értékelt�
 | hit@10 | 16/20 | 80% | 6/10 | 10/10 |
 
 A mérés forrásai: [kerdesek.csv](eval/kerdesek.csv) és [eval.csv](eval/eval.csv). Nyolc kiválasztott kérdés válaszát külön is értékeltük 1–5 skálán (pontok: 5, 5, 5, 5, 4, 3, 3, 3; átlag 4,1); a válasznapló és a pontozás itt található: [qa_naplo.csv](eval/qa_naplo.csv), [qa_pontozas.csv](eval/qa_pontozas.csv).
+
+A leadás után Szilvia a teljes megoldást újra átnézte ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)): a Python-kódot, a notebookot, a dokumentációt és a közzétett jelentést, tesztekkel, modellválaszokkal és böngészős, mobilméretű próbákkal. Mind a 32 offline teszt lefutott. Több olyan hibát is reprodukált, amelyet a tesztek nem fednek le; ezek a 6. pontba kerültek. A legfontosabb új hibák: a nyilvános felület jelszó nélkül is elindulhat, a tématérképen a kattintásra nyíló arXiv-hivatkozás nem működik, és mobilméretben a trendgrafikon használhatatlanná szűkül.
+
+### 4.7. Tématérkép
+
+A leadás után a megoldást látványosabbá akartuk tenni. Ennek első eredménye a cikkek interaktív tématérképe ([Topic_Map.png](screenshots/Topic_Map.png)). A térkép a Gradio-felület Tématérkép fülén, a notebook 5. szakaszában és a közzétett jelentésben is megjelenik.
+
+- **Mit mutat:** minden pont egy cikk. A 768 dimenziós vektorokat a UMAP-módszer vetíti síkba, így a hasonló tartalmú cikkek egymás mellé kerülnek. A pont színe a cikk témájának növekedése (4.5): piros, ha a téma részaránya nőtt, kék, ha csökkent. A témák neve a téma foltja fölött áll, a három leggyorsabban növő témáé félkövér.
+- **Használat:** a térkép alatti csúszkával egy hónap cikkei emelhetők ki; a közzétett jelentésben a lejátszás végiglépteti a hónapokat. Egy pontra mutatva látszik a cikk címe, hónapja és témája.
+- **Megjelenítés:** a nyers vetítésben a témák egymásba folynak. Hogy kivehetők legyenek, megjelenítéskor minden cikk a témája közepe felé húzódik, a távolság állítható hányadával (alapérték 0,5; 0 = a nyers felhő). Ezután a témák foltjai kissé széthúzódnak, hogy ne torlódjanak egymásra, majd a térkép fekvő tájolásba fordul. Ezek a lépések csak a megjelenítést érintik: a Drive-on tárolt koordináták nem változnak, a pontok pedig a vektorok szerinti szomszédaik közelében maradnak. A térkép felirata ezt jelzi is.
+- **Számítás:** a koordináták kiszámítása az első futáskor 1–2 perc, utána a Drive-ról töltődnek be (`terkep.npy`). Az összehúzás erőssége a notebookban (`MAP_PULL`) és a Gradio-felület csúszkáján újraszámolás nélkül állítható.
+
+A végleges megoldáshoz három, valódi adaton kipróbált változaton keresztül jutottunk el (5.10):
+
+1. A felügyelet nélküli vetítés egyetlen, nehezen olvasható „mákos felhőt” adott, a témák keveredtek.
+2. A témacímkékkel felügyelt UMAP jól elkülönülő szigeteket adott, de ezek túl élesek voltak: a valóságban a témák egymásba folynak. Kiderült, hogy a UMAP felügyelete nem fokozatos, már a legkisebb súly is éles szigeteket ad.
+3. A végleges változat a felügyelet nélküli vetítést használja, és a témákat megjelenítéskor, állítható erővel húzza össze.
+
+Egy technikai akadály is felmerült. A Colab és a Gradio a Plotly régebbi, 2.x változatát használja, amelyben a hónapok animációja eltüntette a pontokat. A hónapcsúszka ezért animáció helyett egyszerű átszínezéssel működik, a lejátszást pedig a közzétett jelentésben egy rövid JavaScript végzi.
 
 ## 5. Tanulságok
 
@@ -178,7 +203,7 @@ A trendek értelmezésénél is fontos a mérés határa: havi 400 cikk mintáj�
 
 ### 5.8. A nyelvi modell által írt összefoglaló többet állít, mint amit a mérés alátámaszt
 
-A jelenlegi közzétett összefoglaló a témák gyakoriságából arra is következtet, hogy „a technológia nemcsak olcsóbbá, de okosabbá is válik”, és egy téma „robbanásszerű, tízszeres növekedését” emeli ki. A mérés csak részarányok változását mutatja a vizsgált mintában; ok-okozati vagy minőségi állítást nem támaszt alá. A tízszeres növekedésű téma („Keresőoptimalizálás és értékelés”, 318 cikk, kulcsszavai: answer, accuracy, evidence, points, does, judge) ráadásul inkább gyűjtőtémának látszik, mint egy jól körülhatárolt kutatási iránynak. A kulcsszavas témacímkék korábban is félrevezetőek voltak: az első futás leggyorsabban növő témájának kulcsszavai („tajik, sealed, odrl”) egyetlen cikkekből származó ritka szavak voltak, ezt a legalább 5 cikkben előforduló szavak szűrése javította. Az összefoglaló promptját úgy kell szigorítani, hogy csak a mért részarányokról beszéljen (6. pont).
+A november 15-i közzétett összefoglaló a témák gyakoriságából arra is következtet, hogy „a technológia nemcsak olcsóbbá, de okosabbá is válik”, és egy téma „robbanásszerű, tízszeres növekedését” emeli ki. A november 23-i, újragenerált összefoglaló ugyanezt a hibát mutatja: szerinte a növekvő témák célja, hogy a modelleket „olcsóbbá, pontosabbá és könnyebben kezelhetővé” tegyék. A mérés csak részarányok változását mutatja a vizsgált mintában; ok-okozati vagy minőségi állítást nem támaszt alá. A tízszeres növekedésű téma („Keresőoptimalizálás és értékelés”, 318 cikk, kulcsszavai: answer, accuracy, evidence, points, does, judge) ráadásul inkább gyűjtőtémának látszik, mint egy jól körülhatárolt kutatási iránynak. A kulcsszavas témacímkék korábban is félrevezetőek voltak: az első futás leggyorsabban növő témájának kulcsszavai („tajik, sealed, odrl”) egyetlen cikkekből származó ritka szavak voltak, ezt a legalább 5 cikkben előforduló szavak szűrése javította. Az összefoglaló promptját úgy kell szigorítani, hogy csak a mért részarányokról beszéljen (6. pont).
 
 ### 5.9. Ugyanaz a projekt eltérő tudást adott kettőnknek
 
@@ -188,14 +213,30 @@ A jelenlegi közzétett összefoglaló a témák gyakoriságából arra is köve
 
 A következő közös fejlesztésben megtartanánk a Colabot a prototípus kipróbálásához, a GitHubot az együttműködéshez, valamint a részösszefoglalókat a folytatás megkönnyítésére. A fiókok, hozzáférések és fejlesztési erőforrások rendezését viszont már a munka elején elvégeznénk.
 
+### 5.10. A látványos megjelenítés is értelmezés
+
+A tématérkép három változatán keresztül jutottunk el egy olyan képhez, amely egyszerre olvasható és nem állít többet az adatnál (4.7). Az éles, jól elkülönülő szigetek a legrendezettebb képet adták, de ez a rendezettség a témacímkékből származott, nem a cikkek tartalmából: azt sugallta, hogy a témák élesen elválnak, holott a valóságban egymásba folynak. A végleges változatban a pontok helyzete a vektorokból adódik, a témák kiemelése pedig egyetlen, megnevezett és állítható megjelenítési lépés, amelyet a térkép felirata is jelez.
+
+A tapasztalatból azt visszük tovább, hogy egy vizualizáció minden olyan lépését, amely nem közvetlenül az adatból következik, meg kell nevezni, és lehetőleg állíthatóvá kell tenni. A megfelelő beállítást valódi adaton, a felhasználó szemével kell kiválasztani: a kitalált próbaadatokon mindhárom változat elfogadhatónak látszott.
+
+### 5.11. A független ellenőrzés olyan hibát is talál, amelyet a tesztek nem
+
+Az offline tesztek mind lefutottak, Szilvia ellenőrzése mégis több valódi hibát talált (4.6). A tématérkép kattintható hivatkozásánál a teszt csak azt ellenőrizte, hogy a szkript bekerül-e a jelentésbe, azt nem, hogy működik-e; a JavaScript-minta hibás escape-elése így észrevétlen maradt. Hasonló a Plotly-verzió esete: a fejlesztői környezetben a hónapok animációja működött, a Colab régebbi Plotly-verziójával nem.
+
+Az automatikus tesztek és a böngészőben, a tényleges futtatókörnyezetben végzett kipróbálás tehát kiegészítik egymást. A munkamegosztásunkban ez a szerep természetesen adódott: aki nem írta a kódot, más szemmel nézi az eredményt.
+
 ## 6. Ismert hibák, szükséges módosítások és továbbfejlesztési lehetőségek
 
-A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek.
+A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek. A határidő meghosszabbítása után a tématérkép készült el (4.7); az alább felsorolt hibák javítása még hátravan. A lista Szilvia leadás utáni ellenőrzésének eredményeivel bővült ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)), ezért az első helyen az ott elsőként javasolt javítások állnak.
 
 ### Szükséges módosítások
 
 | Hol | Mit | Miért |
 |---|---|---|
+| `app.py` – a felület indítása | Nyilvános (`share`) indításnál a jelszó legyen kötelező; `UI_PASSWORD` nélkül ne induljon el a felület. | Jelenleg csak figyelmeztet; beállított `GITHUB_TOKEN` mellett a link birtokosa közzétehetne, és az API-keretet is használhatná. A ténylegesen használt felület jelszóval védett. |
+| `tmap.py` – kattintás a térképen | A cikkazonosítót ellenőrző JavaScript-minta helyes escape-elése; teszt, amely a mintát valódi azonosítóval ki is próbálja. | A mintában túl sok escape-karakter van, ezért szabályos azonosítót is elutasít: a kattintásra nem nyílik meg a cikk (5.11). |
+| `report.py` – trendgrafikon | Keskeny képernyőn más elrendezés: a feliratok jelmagyarázatba, kisebb jobb margó. | A rögzített 270 pixeles jobb margó mobilméretben szinte elfogyasztja a rajzterületet. |
+| `tmap.py` – tématérkép a böngészőben | Átméretezés utáni újrarajzolás; sötét módban olvasható feliratok. | Egy próbában átméretezés után üres maradt (újratöltésre megjelent); sötét módban több felirat nehezen olvasható. |
 | `report.py`, notebook 5. szakasz | A növekedési mutató leírása a jelentésben és a grafikonon írja ki a simítást (4.5), és „a vizsgált havi mintában” növekvő témákról beszéljen. | A jelenlegi szöveg egyszerű hányadost ígér. |
 | `prompts.py` – `SUMMARY_PROMPT` | Csak a mért részarány-változásokról írjon; ok-okozati, minőségi („olcsóbb, okosabb”) és a kategória egészére vonatkozó állításokat ne tegyen; a simított mutató korlátját említse. | 5.8. |
 | `report.py`, notebook | A jelentés fejlécébe és egy `futas.json`-ba kerüljön a futás rekordja: kódverzió, modellek, beállítások, a `papers.csv` és az `embeddings.npy` SHA-256 ellenőrzőösszege. | Az eredmények utólag is azonosíthatók legyenek; a mostani futáshoz ezt kézzel rekonstruáltuk (4.4), ellenőrzőösszeg nélkül. |
@@ -203,15 +244,21 @@ A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felüle
 | `rag.py` – nyelvfelismerés | Kézzel választható válasznyelv a felületen; az automatikus felismerés maradjon alapértelmezés. | Angol kérdésben az „MI”, a „van der Waals” vagy a „résumé” is magyar választ állít be ([errors.md](eval/errors.md)). |
 | `trends.py` – témanevek | A JSON értékeinek típusát is ellenőrizze, különben a tartalék elnevezést használja. | Érvényes, de rossz típusú JSON-nál kivétel ([errors.md](eval/errors.md)). |
 | `embed.py` – vektor-ujjlenyomat | Az ellenőrzőösszeg a címet és az absztraktot is tartalmazza. | Változatlan azonosító mellett módosult absztrakthoz a régi vektort használja ([errors.md](eval/errors.md)). |
+| `tmap.py` – térkép-ujjlenyomat | Az ellenőrzőösszeg a teljes vektort vegye figyelembe. | Jelenleg csak a vektorok első nyolc komponensét nézi. |
+| `rag.py` – hivatkozás-ellenőrzés | A hivatkozás nélküli válasz és a forrással alá nem támasztott állítás jelzése. | Most csak azt vizsgálja, hogy az idézett azonosító az átadott források között volt-e. |
+| `app.py` – közzététel | A közlendő kérdés–válaszok kiválasztása, előnézet a feltöltés előtt, egyedi futásazonosító az archívumban. | Az egész napló bekerülhet a jelentésbe, és az aznapi új közzététel felülírja az azonos dátumú archív oldalt (november 23-án három közzététel történt, az archívumban csak az utolsó maradt meg). |
 
 ### Továbbfejlesztési lehetőségek
 
 - **Reprezentatív mintavétel.** A hónap teljes cikkállományának letöltése, vagy a hónapon belül egyenletesen (pl. hetente) vett minta a „hónap utolsó napjai” torzítás helyett (4.4).
 - **A közzététel védelme.** A felület jelszava (Colab Secrets `UI_PASSWORD`) a mostani leadásban elkészült; ezen túl a Közzététel gombhoz külön megerősítés vagy külön jelszó, a `GITHUB_TOKEN` minimális jogosultsággal, és a közzétett jelentés automatikus ellenőrzése (pl. a témák száma, a dátum) a feltöltés előtt.
 - **Minőségi teszt erősebb modellel.** A technikai tesztekhez a gyors és olcsó `gemini-3.5-flash-lite` megfelelő; a RAG-válaszok minőségi teszteléséhez erősebb, érvelő modell (pl. `gemini-3.1-pro-preview`, fizetős API) adna tisztább képet. A modellnév egy helyen állítható.
-- **Kiértékelés bővítése.** Több tesztkérdés, nyelvenként azonos témákkal, hogy a magyar és az angol kérdések eltérése (hit@5: 6/10, illetve 10/10) a nyelv hatásaként értelmezhető legyen; a magyar kérdések angolra fordítása a keresés előtt (query translation) mint kipróbálható javítás.
+- **Kiértékelés bővítése.** Több tesztkérdés, nyelvenként azonos témákkal (azonos tartalmú magyar–angol kérdéspárok), megválaszolhatatlan kérdések és a feltárt hibákra célzott tesztek, hogy a magyar és az angol kérdések eltérése (hit@5: 6/10, illetve 10/10) a nyelv hatásaként értelmezhető legyen; a magyar kérdések angolra fordítása a keresés előtt (query translation) mint kipróbálható javítás.
 - **Hivatkozás-ellenőrzés javítással.** A tévesen írt azonosítót (egy számjegy eltérés) a rendszer a legközelebbi átadott azonosítóra javíthatná, és jelölhetné a javítást.
-- **Témacímkék minősége.** Gyűjtőtémák felismerése (pl. nagy méret és általános kulcsszavak), a témák számának adatvezérelt megválasztása, BERTopic-szerű hierarchikus témák.
+- **Témacímkék minősége.** Gyűjtőtémák felismerése (pl. nagy méret és általános kulcsszavak), a témák számának adatvezérelt megválasztása, BERTopic-szerű hierarchikus témák. Témánként néhány reprezentatív cikk és kézzel javítható név megjelenítése; tartós témaazonosítók a futások összevetéséhez. A „Keresőoptimalizálás és értékelés” név felülvizsgálandó: az általános kulcsszavak önmagukban nem igazolják.
+- **Pontosabb visszakeresés.** Kulcsszavas és szemantikus keresés összekapcsolása, a találatok újrarangsorolása; kevés vagy gyenge forrásnál annak jelzése, hogy nincs elegendő bizonyíték.
+- **Megismételhető futások és automatizált ellenőrzés.** Rögzített csomagverziók; a tesztek automatikus futtatása a GitHubon; a grafikonok böngészős ellenőrzése mobilméretben is; csak az új vagy módosított cikkek újravektorizálása.
+- **A látványosság további lépései.** A kérdés és az átadott források megjelenítése a tématérképen; a kiértékelés hőtérképe (melyik helyen lett meg a várt cikk, nyelvenként); összefoglaló mutatók a jelentés elején.
 - **Összehasonlítás kész eszközzel** (pl. NotebookLM) ugyanazokon a kérdéseken.
 - **Állandó szolgáltatás.** Ütemezett havi futás, saját gépen vagy szerveren futó változat helyi nyelvi modellel (Ollama); ennek költség- és erőforrástervét külön szakaszban készítenénk el (5.1).
 
@@ -227,3 +274,7 @@ A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felüle
 | 2026-11-13 | Gradio webes felület; statikus HTML-jelentés és közzététel a GitHub Pages-re; első közzététel. |
 | 2026-11-14 | Hónaponkénti adattárolás, `FRISSITES` kapcsoló, letöltési dátum a jelentésben; megjegyzés a modellválasztásról. |
 | 2026-11-15 | Grafikon újratervezve; a megjelenített témák száma újraszámolás nélkül állítható; a válasz a kérdés nyelvén; Szilvia 20 tesztkérdése, kiértékelés, 8 pontozott válasz, képernyőképek, kódhibák listája; közzététel 18:38; jelszó a felületen. |
+| 2026-11-16 | Leadás. Ezután az oktató meghosszabbította a határidőt. |
+| 2026-11-18 | A megoldás átnézése a látványosság szempontjából: tématérkép, kérdés a térképen, a kiértékelés hőtérképe, a trendgrafikon mobilos elrendezése, összefoglaló mutatók; a tématérkép készül el elsőként. |
+| 2026-11-22 | Tématérkép (UMAP) a jelentésben, a Gradio-felületen és a notebookban. Valódi adaton „mákos felhő” lett, és a hónapcsúszka eltüntette a pontokat (a Colab Plotly 2.x-e); javítás: témacímkékkel felügyelt UMAP, a csúszka animáció helyett átszínezéssel. |
+| 2026-11-23 | A szigetek torlódtak, majd túl élesnek bizonyultak; végleges változat: felügyelet nélküli UMAP és állítható összehúzás. Közzététel a tématérképpel (András, majd Szilvia). Szilvia leadás utáni ellenőrzése: 32 teszt, új hibák (jelszó nélküli indítás, a térkép hivatkozása, mobilgrafikon); dokumentáció frissítve. |
