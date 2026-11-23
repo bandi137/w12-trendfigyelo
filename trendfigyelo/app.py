@@ -11,7 +11,7 @@ from . import report
 from .evaluate import evaluate, load_questions
 from .data import download_dates
 from .publish import PublishError, list_archive, pages_url, publish_files
-from .tmap import map_coords, topic_map
+from .tmap import PULL, map_coords, topic_map
 from .trends import find_topics, name_topics, summarize_trends, topic_trends, trend_table
 
 AUTHORS = "Sümegi András, Süle Szilvia"
@@ -78,16 +78,19 @@ class TrendApp:
         return report.trend_figure(t["share"], t["growth"], t["names"], t["ids"], self.s["category"],
                                    n=int(n or self.s["n_show"]))
 
-    def map_figure(self, play_button=False):
-        """Tématérkép a mostani témákkal. A koordinátákat a témák is alakítják (felügyelt UMAP), ezért új témáknál
-        újraszámolódnak (1–2 perc); különben a Drive-ról töltődnek. play_button: csak a HTML-jelentésben működik."""
+    def map_figure(self, play_button=False, pull=None):
+        """Tématérkép a mostani témákkal. A koordináták (felügyelet nélküli UMAP) csak a vektoroktól függenek: elsőre
+        1–2 perc, utána a Drive-ról töltődnek. pull: a témák összehúzásának erőssége (0–0,8; lásd tmap.PULL), a
+        jelentés is ezt használja. play_button: csak a HTML-jelentésben működik."""
         if self.trends is None:
             self.compute_trends()
-        key = tuple(self.df.topic)
-        if self.coords is None or self.coords[0] != key:
-            self.coords = (key, map_coords(self.emb, self.df.id, self.data_dir, labels=self.df.topic.to_numpy()))
+        if self.coords is None:
+            self.coords = map_coords(self.emb, self.df.id, self.data_dir)
+        if pull is not None:
+            self.s["map_pull"] = float(pull)
         t = self.trends
-        return topic_map(self.coords[1], self.df, t["names"], t["growth"], self.s["category"], play_button=play_button)
+        return topic_map(self.coords, self.df, t["names"], t["growth"], self.s["category"], play_button=play_button,
+                         pull=self.s.get("map_pull", PULL))
 
     def summarize(self):
         if self.trends is None:
@@ -183,13 +186,18 @@ class TrendApp:
                          [q, k, since], answer)
 
             with gr.Tab("Tématérkép"):
-                gr.Markdown("Minden pont egy cikk, egy sziget egy téma; a hasonló témák egymás közelében. A szín a cikk témájának "
-                            "növekedése (piros: nő, kék: csökken). A csúszkával egy hónap cikkei emelhetők ki (a lejátszás a "
-                            "közzétett jelentésben működik). Új témáknál a térkép számítása 1–2 perc, utána a Drive-ról töltődik. "
-                            "A **Témák számítása** gomb (Trendek fül) a térképet is frissíti.")
-                map_btn = gr.Button("Térkép rajzolása", variant="primary")
+                gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek, a témák egymásba folynak. "
+                            "Hogy a témák kivehetők legyenek, a cikkek a témájuk közepe felé húzódnak: ennek erőssége "
+                            "a csúszkával állítható (0 = a nyers felhő). A szín a cikk témájának növekedése (piros: nő, "
+                            "kék: csökken). A térkép alatti csúszkával egy hónap cikkei emelhetők ki (a lejátszás a "
+                            "közzétett jelentésben működik). Elsőre a térkép számítása 1–2 perc, utána a Drive-ról "
+                            "töltődik. A **Témák számítása** gomb (Trendek fül) a térképet is frissíti.")
+                with gr.Row():
+                    map_pull = gr.Slider(0, 0.8, value=PULL, step=0.05, label="Témák összehúzása", scale=3)
+                    map_btn = gr.Button("Térkép rajzolása", variant="primary", scale=1)
                 map_plot = gr.Plot(show_label=False)
-                map_btn.click(safe(self.map_figure), None, map_plot)
+                map_btn.click(safe(lambda p: self.map_figure(pull=p)), map_pull, map_plot)
+                map_pull.release(safe(lambda p: self.map_figure(pull=p)), map_pull, map_plot)
 
             with gr.Tab("Trendek"):
                 with gr.Row():

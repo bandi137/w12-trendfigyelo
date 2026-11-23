@@ -180,11 +180,18 @@ def test_map_coords_cached_and_recomputed(corpus, tmp_path):  # noqa: F811
     np.save(tmp_path / "terkep.npy", np.zeros_like(xy))                      # ha a cikklista változik: újraszámol
     other = tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), method="tsne")
     assert other.shape == (len(df) - 1, 2) and other.any()
-    labels = df.true.astype("category").cat.codes.to_numpy()                 # a témák is számítanak: újraszámol
-    sup = tf.map_coords(emb, df.id, str(tmp_path), labels=labels, method="tsne")
-    assert not np.array_equal(sup, xy)
-    spread = lambda c: np.mean([c[labels == t].std(axis=0).mean() for t in np.unique(labels)])  # noqa: E731
-    assert spread(sup) < spread(xy)                                           # a témák összébb húzódnak
+    labels = df.true.astype("category").cat.codes.to_numpy()                 # a témák nem számítanak: betöltés
+    assert np.array_equal(tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), labels=labels[:-1], method="tsne"), other)
+
+
+def test_pull_blurs_topics_gradually():
+    from trendfigyelo.tmap import _pull
+    rng = np.random.default_rng(0)
+    xy, topics = rng.normal(size=(400, 2)), rng.integers(0, 4, 400)           # teljesen kevert felhő
+    spread = lambda c: np.mean([c[topics == t].std(axis=0).mean() for t in range(4)])  # noqa: E731
+    s0, s3, s6 = spread(_pull(xy, topics, 0)), spread(_pull(xy, topics, 0.3)), spread(_pull(xy, topics, 0.6))
+    assert np.allclose(_pull(xy, topics, 0), xy) and s0 > s3 > s6            # fokozatos: 0 = változatlan
+    assert np.isclose(s6 / s0, 0.4, atol=0.02)                                # a távolság 60 %-ával húz befelé
 
 
 def test_topic_map_layers_colors_labels(corpus):  # noqa: F811
@@ -222,7 +229,7 @@ def test_spread_islands_separates_and_keeps_layout():
     c = np.array([np.median(out[topics == t], axis=0) for t in range(5)])
     r = np.array([np.percentile(np.linalg.norm(out[topics == t] - c[t], axis=1), 75) for t in range(5)])
     d = np.linalg.norm(c[:, None] - c[None], axis=2) + np.eye(5) * 99
-    assert (d >= (r[:, None] + r[None]) * 0.999).all()                      # nincs átfedő sziget
+    assert (d >= 0.8 * (r[:, None] + r[None]) * 0.999).all()                # legfeljebb kis átfedés (sep=0,8)
     for t in range(5):                                                       # a sziget alakja nem változik
         assert np.allclose(out[topics == t] - out[topics == t].mean(0), xy[topics == t] - xy[topics == t].mean(0))
     assert np.argmax(c[:, 0]) in (2, 3) and np.argmin(c[:, 0]) == 4         # a szigetek sorrendje megmarad

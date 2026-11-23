@@ -25,7 +25,7 @@ Sümegi András ([bandi137](https://github.com/bandi137)), Süle Szilvia ([SuleS
 | `trendfigyelo/prompts.py` | Az összes prompt |
 | `trendfigyelo/evaluate.py` | Kiértékelés (hit@1/5/10), tesztkérdések beolvasása |
 | `trendfigyelo/app.py` | Gradio webes felület: Kérdezz, Tématérkép, Trendek, Kiértékelés, Közzététel |
-| `trendfigyelo/tmap.py` | Tématérkép: a cikkek 2D-s térképe (felügyelt UMAP: egy sziget egy téma), a témák növekedése szerint színezve, hónapcsúszkával |
+| `trendfigyelo/tmap.py` | Tématérkép: a cikkek 2D-s térképe (UMAP; a témák állítható erővel összehúzva), a témák növekedése szerint színezve, hónapcsúszkával |
 | `trendfigyelo/report.py` | Önálló HTML-jelentés (interaktív Plotly-grafikonok) |
 | `trendfigyelo/publish.py` | Közzététel a GitHub Pages-re egyetlen commitban (GitHub API, token) |
 | `docs/` | A GitHub Pages weboldal; közzétételi útmutató: `docs/KOZZETETEL.md` |

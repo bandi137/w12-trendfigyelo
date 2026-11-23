@@ -1,10 +1,12 @@
 """Tématérkép: a cikkek 2D-s térképe a vektoraik alapján, a témák növekedése szerint színezve.
 
-A 768 dimenziós vektorokat UMAP vetíti síkba. A témacímkék kis súllyal részt vesznek a vetítésben (felügyelt UMAP),
-ezért egy téma cikkei egy „szigetbe” kerülnek; a szigetek egymáshoz viszonyított helye a vektorokból adódik.
-Címkék nélkül a hasonló témák cikkei egyetlen, nehezen olvasható felhőben keverednének.
+A 768 dimenziós vektorokat UMAP vetíti síkba (felügyelet nélkül): a hasonló cikkek egymás mellé kerülnek, és a
+cikkek egyetlen összefüggő felhőt alkotnak, ahogy a valóságban is egymásba folynak a témák. Hogy a témák mégis
+kivehetők legyenek, megjelenítéskor minden cikk a témája közepe felé húzódik (PULL: a távolság ekkora hányadával).
+Így a témák elmosódott foltokként látszanak, a szélük átfedhet, és minden cikk a valódi szomszédai felé esik.
+(A UMAP témacímkés felügyelete ehhez nem alkalmas: már a legkisebb súly is éles, elkülönült szigeteket ad.)
 A szín a cikk témájának növekedése (kék: csökkenő, szürke: változatlan, piros: növekvő részarány), a témák neve a
-sziget fölött áll. Egy hónapcsúszkával kiemelhető, hová estek egy adott hónap cikkei.
+folt fölött áll. Egy hónapcsúszkával kiemelhető, hová estek egy adott hónap cikkei.
 
 A hónapcsúszka szándékosan nem Plotly-animáció (frames): a Colab és a Gradio régebbi Plotly-verziója (2.x)
 animációnál eltünteti a Scattergl pontjait. A csúszka minden lépése egy egyszerű `restyle`, a lejátszást pedig a
@@ -24,54 +26,44 @@ import numpy as np
 MAP_COLORSCALE = [[0.0, "#256abf"], [0.25, "#6da7ec"], [0.5, "#a9a7a1"], [0.75, "#ec7a6c"], [1.0, "#c23b36"]]
 LOG2_RANGE = 2.0                 # a skála vége: 4× növekedés ill. negyedére csökkenés (efölött telítődik)
 INK = "#5f6670"                  # szövegszín (feliratok, tengelyek); világos és sötét háttéren is olvasható
-TARGET_WEIGHT = 0.05             # a témacímkék súlya a felügyelt UMAP-ban (0: csak a vektorok; 0,3 fölött pöttyökké esik szét)
-SHRINK = 0.45                    # t-SNE tartaléknál: a téma pontjai ennyire húzódnak a téma közepe felé
+PULL = 0.5                       # a cikk és a témája közepe közti távolság ekkora hányadával húzódik befelé
+                                 # (0: a nyers UMAP-felhő; 0,7 fölött már éles, elkülönült foltok)
+UMAP_PARAMS = dict(n_neighbors=30, min_dist=0.25, metric="cosine")
 
 
-def _fingerprint(emb, ids, labels, method):
+def _fingerprint(emb, ids, method):
     h = hashlib.sha1(np.ascontiguousarray(emb[:, :8], dtype=np.float32).tobytes())
     h.update("\n".join(map(str, ids)).encode())
-    if labels is not None:
-        h.update(np.asarray(labels, dtype=np.int64).tobytes())
-    return dict(method=method, supervised=labels is not None, n=int(len(emb)), sha1=h.hexdigest())
+    return dict(method=method, params=UMAP_PARAMS if method == "umap" else {}, n=int(len(emb)), sha1=h.hexdigest())
 
 
-def _project(emb, labels, method, seed):
+def _project(emb, method, seed):
     if method == "umap":
         import inspect
         import umap
-        kw = dict(n_neighbors=30, min_dist=0.25, metric="cosine", random_state=seed)
-        params = inspect.signature(umap.UMAP).parameters
-        if "compatibility_layout" in params:                 # újabb umap: a megszokott elrendezés
+        kw = dict(UMAP_PARAMS, random_state=seed)
+        if "compatibility_layout" in inspect.signature(umap.UMAP).parameters:   # újabb umap: a megszokott elrendezés
             kw["compatibility_layout"] = True
-        if labels is not None:
-            kw["target_weight"] = TARGET_WEIGHT
-        return umap.UMAP(**kw).fit_transform(emb, y=None if labels is None else np.asarray(labels))
+        return umap.UMAP(**kw).fit_transform(emb)
     from sklearn.decomposition import PCA
     from sklearn.manifold import TSNE
     x = PCA(n_components=min(50, emb.shape[1], len(emb) - 1), random_state=seed).fit_transform(emb)
-    xy = TSNE(n_components=2, perplexity=min(30, max(5, (len(emb) - 1) // 4)), init="pca",
-              random_state=seed).fit_transform(x)
-    if labels is not None:                                    # a t-SNE nem felügyelhető: a témákat összehúzzuk
-        lab = np.asarray(labels)
-        for t in np.unique(lab):
-            m = lab == t
-            c = np.median(xy[m], axis=0)
-            xy[m] = c + SHRINK * (xy[m] - c)
-    return xy
+    return TSNE(n_components=2, perplexity=min(30, max(5, (len(emb) - 1) // 4)), init="pca",
+                random_state=seed).fit_transform(x)
 
 
 def map_coords(emb, ids, data_dir=None, labels=None, method="auto", seed=42):
-    """2D koordináták a cikkekhez (cikk × 2). `labels`: a cikkek témái (ajánlott; nélkülük egyetlen felhő lesz).
+    """2D koordináták a cikkekhez (cikk × 2), felügyelet nélküli UMAP-pal (ha nincs telepítve: t-SNE).
     Ha `data_dir` meg van adva, a Drive-on tárolja (terkep.npy + terkep.json), és csak akkor számol újra, ha a
-    vektorok, a cikklista, a témák vagy a módszer változott."""
+    vektorok, a cikklista vagy a módszer változott; a témák változása nem számít (a témák csak a megjelenítést
+    alakítják). `labels`: nem használt, csak a régebbi notebook-cellák miatt fogadja el."""
     if method == "auto":
         try:
             import umap  # noqa: F401
             method = "umap"
         except ImportError:
             method = "tsne"
-    want = _fingerprint(np.asarray(emb), list(ids), labels, method)
+    want = _fingerprint(np.asarray(emb), list(ids), method)
     if data_dir:
         path, meta_path = os.path.join(data_dir, "terkep.npy"), os.path.join(data_dir, "terkep.json")
         have = json.load(open(meta_path, encoding="utf-8")) if os.path.exists(meta_path) else None
@@ -79,12 +71,24 @@ def map_coords(emb, ids, data_dir=None, labels=None, method="auto", seed=42):
             print("Térkép-koordináták betöltve a Drive-ról")
             return np.load(path)
     print(f"Tématérkép számítása ({method.upper()}, {len(emb)} cikk)…")
-    xy = np.asarray(_project(np.asarray(emb, dtype=np.float32), labels, method, seed), dtype=float)
+    xy = np.asarray(_project(np.asarray(emb, dtype=np.float32), method, seed), dtype=float)
     xy = (xy - xy.mean(axis=0)) / xy.std(axis=0)          # egységes lépték, hogy a feliratok mérete stimmeljen
     if data_dir:
         np.save(path, xy)
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(want, f, indent=1)
+    return xy
+
+
+def _pull(xy, topics, pull):
+    """Minden pontot a témája közepe (medián) felé húz a távolság `pull` hányadával: 0 = változatlan felhő."""
+    xy = np.array(xy, dtype=float)
+    if pull <= 0:
+        return xy
+    for t in np.unique(topics):
+        m = topics == t
+        c = np.median(xy[m], axis=0)
+        xy[m] = c + (1 - pull) * (xy[m] - c)
     return xy
 
 
@@ -94,21 +98,21 @@ def _label_name(name, n=30):
     return textwrap.shorten(short, n, placeholder="…")
 
 
-def _spread_islands(xy, topics, gap=0.7, max_expand=4.0, iters=500):
+def _spread_islands(xy, topics, sep=0.8, max_expand=3.0, iters=500):
     """A szigeteket megjelenítéskor széthúzza, hogy ne torlódjanak egymásra, és a nevüknek is jusson hely.
     1) A szigetek középpontjainak távolságát egyenletesen megnöveli (a szigetek mérete nem változik), így az
        elrendezés változatlan marad; 2) a még átfedő szigeteket (körök: a pontok 75 %-a esik bennük) a
-       középpontjaikat összekötő egyenes mentén széttolja. gap: a szigetek közti rés a tipikus sugár arányában."""
+       középpontjaikat összekötő egyenes mentén széttolja. sep: a középpontok legkisebb távolsága a két sugár
+       összegének arányában (1 alatt a foltok szélei átfedhetnek, ahogy a valóságban is egymásba folynak)."""
     xy = np.array(xy, dtype=float)
     tids = np.unique(topics)
     masks = [topics == t for t in tids]
     c0 = np.array([np.median(xy[m], axis=0) for m in masks])
     r = np.array([np.percentile(np.linalg.norm(xy[m] - c, axis=1), 75) for m, c in zip(masks, c0)])
-    g = gap * np.median(r)
     d = np.linalg.norm(c0[:, None] - c0[None], axis=2)
     np.fill_diagonal(d, np.inf)
     nn = d.argmin(axis=1)                                    # a legközelebbi szomszéd szigetek
-    need = (r + r[nn] + g) / np.maximum(d[np.arange(len(tids)), nn], 1e-9)
+    need = sep * (r + r[nn]) / np.maximum(d[np.arange(len(tids)), nn], 1e-9)
     k = float(np.clip(np.percentile(need, 60), 1.0, max_expand))
     mid = c0.mean(axis=0)
     c = mid + k * (c0 - mid)
@@ -118,7 +122,7 @@ def _spread_islands(xy, topics, gap=0.7, max_expand=4.0, iters=500):
             for j in range(i + 1, len(tids)):
                 v = c[j] - c[i]
                 dist = np.hypot(*v)
-                o = r[i] + r[j] + g - dist
+                o = sep * (r[i] + r[j]) - dist
                 if o > 1e-9:
                     u = v / dist if dist > 1e-9 else np.array([1.0, 0.0])
                     c[i] -= u * o / 2
@@ -166,14 +170,15 @@ def _place_labels(anchors, sizes, iters=300):
 
 
 def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, width_hint=1040, play_button=False,
-              spread=True):
+              pull=PULL, spread=True):
     """Interaktív Plotly-tématérkép.
 
     coords: map_coords() eredménye; df: id, title, month, topic oszlopokkal (a sorrend egyezik a vektorokéval);
     names: {téma: {"nev", "leiras"}}; growth: téma → növekedés (topic_trends); n_highlight: ennyi leggyorsabban
     növő téma neve kiemelt. Minden hónap külön réteg; a csúszka egy hónap cikkeit emeli ki.
     play_button: lejátszás gomb (csak a HTML-jelentésben működik, a MAP_SCRIPT-tel).
-    spread: a szigetek széttolása, hogy ne torlódjanak és a nevük elférjen (csak a megjelenítést érinti).
+    pull: mennyire húzódjanak a cikkek a témájuk közepe felé (0: nyers felhő; lásd PULL).
+    spread: a foltok széthúzása, hogy ne torlódjanak és a nevük elférjen (csak a megjelenítést érinti).
     height: a kép magassága; ha nincs megadva, a térkép arányából adódik (a két tengely léptéke azonos)."""
     import plotly.graph_objects as go
 
@@ -189,6 +194,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
     tids = [t for t in order if (topics == t).any()]
     texts = [f"{_label_name(names[t]['nev'])} {g[t]:.1f}×" for t in tids]
     label_px = {t: (len(s) * (7.4 if t in strong else 6.4) + 10, 18) for s, t in zip(texts, tids)}
+    xy = _pull(xy, topics, pull)
     if spread:
         xy = _spread_islands(xy, topics)
     xy = _landscape(xy)
@@ -255,7 +261,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
                       font=dict(size=10, color=INK), tickcolor=INK,
                       steps=[dict(label=s or "mind", method="restyle", args=step_args(s)) for s in steps])],
         title=dict(text=f"Tématérkép – arXiv {category}, {len(df)} cikk"
-                        "<br><sup>minden pont egy cikk, egy sziget egy téma; a hasonló témák egymás közelében · "
+                        "<br><sup>minden pont egy cikk, a hasonló cikkek egymás mellett; a cikkek a témájuk közepe felé húzva · "
                         "szín: a téma növekedése (utolsó 3 hó / első 3 hó)</sup>", x=0, font=dict(size=16)),
         xaxis=dict(visible=False, range=[lo, hi]),
         yaxis=dict(visible=False, range=[y0, y1],

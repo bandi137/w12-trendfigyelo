@@ -182,11 +182,11 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
         sections.append(f"""
 <section id="terkep">
   <h2>Tématérkép</h2>
-  <p class="lead">Minden pont egy cikk, egy sziget egy téma. A cikkek vektorait a UMAP-módszer vetíti síkba, a
-  témacímkék kis súlyával (felügyelt UMAP): így egy téma cikkei egy szigetbe kerülnek, a hasonló témák szigetei pedig
-  egymás közelébe (megjelenítéskor a szigetek kissé széthúzódnak, hogy ne torlódjanak). A szín a téma növekedése: piros, ha a részaránya nőtt, kék, ha csökkent. A csúszkával egy hónap
-  cikkei emelhetők ki, a lejátszás végigléptet a hónapokon. Egy pontra mutatva látszik a cikk címe, kattintásra
-  megnyílik az arXivon.</p>
+  <p class="lead">Minden pont egy cikk. A cikkek vektorait a UMAP-módszer vetíti síkba, így a hasonló tartalmú
+  cikkek egymás mellé kerülnek, és a témák egymásba folynak. Hogy a témák kivehetők legyenek, a cikkek a témájuk
+  közepe felé húzódnak, a foltok pedig kissé széthúzódnak (ez csak a megjelenítést érinti). A szín a téma növekedése:
+  piros, ha a részaránya nőtt, kék, ha csökkent. A csúszkával egy hónap cikkei emelhetők ki, a lejátszás végigléptet
+  a hónapokon. Egy pontra mutatva látszik a cikk címe, kattintásra megnyílik az arXivon.</p>
   <div class="chart">{map_html}</div>
 </section>""")
 
