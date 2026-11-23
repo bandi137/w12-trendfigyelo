@@ -210,3 +210,21 @@ def test_topic_map_layers_colors_labels(corpus):  # noqa: F811
     i = int(np.flatnonzero(df.topic.to_numpy() == top)[0])
     tr = next(t for t in fig.data if t.name == df.month.iloc[i])
     assert max(tr.marker.color) > 0 and tr.marker.cmin == -tr.marker.cmax
+
+
+def test_spread_islands_separates_and_keeps_layout():
+    from trendfigyelo.tmap import _landscape, _spread_islands
+    rng = np.random.default_rng(1)
+    centers = np.array([[0, 0], [0.3, 0.1], [3, 0], [3.2, 2.5], [-2, 2]], dtype=float)   # az első kettő egymásra lóg
+    topics = np.repeat(np.arange(5), 60)
+    xy = centers[topics] + rng.normal(scale=0.3, size=(300, 2))
+    out = _spread_islands(xy, topics)
+    c = np.array([np.median(out[topics == t], axis=0) for t in range(5)])
+    r = np.array([np.percentile(np.linalg.norm(out[topics == t] - c[t], axis=1), 75) for t in range(5)])
+    d = np.linalg.norm(c[:, None] - c[None], axis=2) + np.eye(5) * 99
+    assert (d >= (r[:, None] + r[None]) * 0.999).all()                      # nincs átfedő sziget
+    for t in range(5):                                                       # a sziget alakja nem változik
+        assert np.allclose(out[topics == t] - out[topics == t].mean(0), xy[topics == t] - xy[topics == t].mean(0))
+    assert np.argmax(c[:, 0]) in (2, 3) and np.argmin(c[:, 0]) == 4         # a szigetek sorrendje megmarad
+    rot = _landscape(np.c_[rng.normal(size=200) * 0.2, rng.normal(size=200) * 3])
+    assert np.ptp(rot[:, 0]) > np.ptp(rot[:, 1])                            # fekvő tájolás

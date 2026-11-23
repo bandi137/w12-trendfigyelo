@@ -94,6 +94,54 @@ def _label_name(name, n=30):
     return textwrap.shorten(short, n, placeholder="…")
 
 
+def _spread_islands(xy, topics, gap=0.7, max_expand=4.0, iters=500):
+    """A szigeteket megjelenítéskor széthúzza, hogy ne torlódjanak egymásra, és a nevüknek is jusson hely.
+    1) A szigetek középpontjainak távolságát egyenletesen megnöveli (a szigetek mérete nem változik), így az
+       elrendezés változatlan marad; 2) a még átfedő szigeteket (körök: a pontok 75 %-a esik bennük) a
+       középpontjaikat összekötő egyenes mentén széttolja. gap: a szigetek közti rés a tipikus sugár arányában."""
+    xy = np.array(xy, dtype=float)
+    tids = np.unique(topics)
+    masks = [topics == t for t in tids]
+    c0 = np.array([np.median(xy[m], axis=0) for m in masks])
+    r = np.array([np.percentile(np.linalg.norm(xy[m] - c, axis=1), 75) for m, c in zip(masks, c0)])
+    g = gap * np.median(r)
+    d = np.linalg.norm(c0[:, None] - c0[None], axis=2)
+    np.fill_diagonal(d, np.inf)
+    nn = d.argmin(axis=1)                                    # a legközelebbi szomszéd szigetek
+    need = (r + r[nn] + g) / np.maximum(d[np.arange(len(tids)), nn], 1e-9)
+    k = float(np.clip(np.percentile(need, 60), 1.0, max_expand))
+    mid = c0.mean(axis=0)
+    c = mid + k * (c0 - mid)
+    for _ in range(iters):
+        moved = False
+        for i in range(len(tids)):
+            for j in range(i + 1, len(tids)):
+                v = c[j] - c[i]
+                dist = np.hypot(*v)
+                o = r[i] + r[j] + g - dist
+                if o > 1e-9:
+                    u = v / dist if dist > 1e-9 else np.array([1.0, 0.0])
+                    c[i] -= u * o / 2
+                    c[j] += u * o / 2
+                    moved = True
+        if not moved:
+            break
+    for m, dv in zip(masks, c - c0):
+        xy[m] += dv
+    return xy
+
+
+def _landscape(xy):
+    """Elforgatja a térképet, hogy a hosszabbik kiterjedése vízszintes legyen (a UMAP tengelyeinek nincs jelentése,
+    így a forgatás semmit nem változtat; a képernyőn viszont jobban kitölti a helyet)."""
+    z = xy - np.median(xy, axis=0)
+    _, vecs = np.linalg.eigh(np.cov(z.T))
+    rot = z @ vecs[:, ::-1]                                    # 1. főirány vízszintesen
+    if np.median(rot[:, 0] ** 3) < 0:                          # determinisztikus irány (ne tükröződjön futásonként)
+        rot[:, 0] *= -1
+    return rot
+
+
 def _place_labels(anchors, sizes, iters=300):
     """Egyszerű taszítás: az egymást fedő feliratdobozokat függőlegesen széttolja.
     anchors: (k, 2) középpontok; sizes: (k, 2) szélesség, magasság ugyanabban a mértékegységben."""
@@ -117,13 +165,16 @@ def _place_labels(anchors, sizes, iters=300):
     return pos
 
 
-def topic_map(coords, df, names, growth, category, n_highlight=3, height=700, width_hint=1040, play_button=False):
+def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, width_hint=1040, play_button=False,
+              spread=True):
     """Interaktív Plotly-tématérkép.
 
     coords: map_coords() eredménye; df: id, title, month, topic oszlopokkal (a sorrend egyezik a vektorokéval);
     names: {téma: {"nev", "leiras"}}; growth: téma → növekedés (topic_trends); n_highlight: ennyi leggyorsabban
     növő téma neve kiemelt. Minden hónap külön réteg; a csúszka egy hónap cikkeit emeli ki.
-    play_button: lejátszás gomb (csak a HTML-jelentésben működik, a MAP_SCRIPT-tel)."""
+    play_button: lejátszás gomb (csak a HTML-jelentésben működik, a MAP_SCRIPT-tel).
+    spread: a szigetek széttolása, hogy ne torlódjanak és a nevük elférjen (csak a megjelenítést érinti).
+    height: a kép magassága; ha nincs megadva, a térkép arányából adódik (a két tengely léptéke azonos)."""
     import plotly.graph_objects as go
 
     xy = np.asarray(coords, dtype=float)
@@ -132,6 +183,19 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=700, wi
     lg = np.clip(np.log2([g[t] for t in topics]), -LOG2_RANGE, LOG2_RANGE)
     months = sorted(df.month.unique())
     e = html.escape
+
+    order = sorted(g, key=g.get, reverse=True)
+    strong = set(order[:n_highlight])
+    tids = [t for t in order if (topics == t).any()]
+    texts = [f"{_label_name(names[t]['nev'])} {g[t]:.1f}×" for t in tids]
+    label_px = {t: (len(s) * (7.4 if t in strong else 6.4) + 10, 18) for s, t in zip(texts, tids)}
+    if spread:
+        xy = _spread_islands(xy, topics)
+    xy = _landscape(xy)
+    span = np.ptp(xy, axis=0) * np.array([1.1, 1.14])
+    scale = span[0] / (width_hint - 20)                           # adategység / képpont, mindkét tengelyen
+    if height is None:
+        height = int(np.clip(span[1] / scale + 190, 560, 900))
 
     def hover_text(i):
         r = df.iloc[i]
@@ -159,18 +223,12 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=700, wi
                           "téma: %{customdata[2]} (%{customdata[3]})<extra></extra>"))
 
     # Témanevek a sziget fölött (a téma pontjainak felső széle; a kilógó cikkek nem számítanak);
-    # a leggyorsabban növők félkövérek. Az ütköző feliratokat függőlegesen széttoljuk.
-    order = sorted(g, key=g.get, reverse=True)
-    strong = set(order[:n_highlight])
-    tids = [t for t in order if (topics == t).any()]
-    texts = [f"{_label_name(names[t]['nev'])} {g[t]:.1f}×" for t in tids]
-    span = np.ptp(xy, axis=0) * 1.12
-    px_x, px_y = span[0] / (width_hint - 20), span[1] / (height - 200)     # adategység / képpont
-    sizes = np.array([[(len(s) * (7.4 if t in strong else 6.4) + 10) * px_x, 18 * px_y] for s, t in zip(texts, tids)])
+    # a leggyorsabban növők félkövérek. A még ütköző feliratokat függőlegesen széttoljuk.
+    sizes = np.array([[label_px[t][0] * scale, label_px[t][1] * scale] for t in tids])
     tops = np.array([[np.median(xy[topics == t, 0]), np.percentile(xy[topics == t, 1], 90)] for t in tids])
     anchors = tops + np.c_[np.zeros(len(tids)), sizes[:, 1] * 0.55]
     placed = _place_labels(anchors, sizes)
-    lo, hi = xy[:, 0].min() - 0.05 * span[0], xy[:, 0].max() + 0.05 * span[0]
+    lo, hi = xy[:, 0].min() - 0.045 * span[0], xy[:, 0].max() + 0.045 * span[0]
     placed[:, 0] = np.clip(placed[:, 0], lo + sizes[:, 0] / 2, hi - sizes[:, 0] / 2)   # ne lógjon ki oldalt
     for t, s, (ax_, ay_), (lx, ly), (w, h) in zip(tids, texts, anchors, placed, sizes):
         moved = bool(np.hypot((lx - ax_) / w, (ly - ay_) / h) > 0.6)
@@ -189,6 +247,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=700, wi
                  "marker.size": [4.5 if sel is None or m != sel else 7 for m in months]}]
 
     steps = [None] + months
+    y0, y1 = xy[:, 1].min() - 0.03 * span[1], xy[:, 1].max() + 0.05 * span[1]
     slider_x = 0.1 if play_button else 0.0
     fig.update_layout(
         sliders=[dict(active=0, x=slider_x, len=1 - slider_x, y=0, yanchor="top", pad=dict(t=8, b=0),
@@ -199,8 +258,11 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=700, wi
                         "<br><sup>minden pont egy cikk, egy sziget egy téma; a hasonló témák egymás közelében · "
                         "szín: a téma növekedése (utolsó 3 hó / első 3 hó)</sup>", x=0, font=dict(size=16)),
         xaxis=dict(visible=False, range=[lo, hi]),
-        yaxis=dict(visible=False, range=[xy[:, 1].min() - 0.04 * span[1], xy[:, 1].max() + 0.08 * span[1]]),
+        yaxis=dict(visible=False, range=[y0, y1],
+                   scaleanchor="x", scaleratio=1),                    # a szigetek alakja minden szélességen megmarad
         height=height, margin=dict(l=10, r=10, t=100, b=90), hovermode="closest", dragmode="pan",
+        meta=dict(aspect=round(float(np.ptp(xy[:, 1]) * 1.08 / (hi - lo)), 4),
+                  xr=[round(float(lo), 4), round(float(hi), 4)], yr=[round(float(y0), 4), round(float(y1), 4)]),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color=INK),
         hoverlabel=dict(font_size=12, align="left"))
     if play_button:
@@ -245,9 +307,14 @@ gd.on('plotly_click', function (ev) {
     var n = gd.clientWidth < 640;
     if (n === narrow) return;
     narrow = n;
-    if (gd._fullTitle === undefined) gd._fullTitle = gd.layout.title.text;
+    if (gd._fullTitle === undefined) { gd._fullTitle = gd.layout.title.text; gd._fullHeight = gd.layout.height; }
     var upd = {'title.text': n ? gd._fullTitle.split('<br>')[0] : gd._fullTitle};
-    var xr = gd.layout.xaxis.range, w = xr[1] - xr[0];
+    var xr = (gd.layout.meta && gd.layout.meta.xr) || gd.layout.xaxis.range, w = xr[1] - xr[0];
+    // keskeny képernyőn a magasság a térkép arányához igazodik (azonos lépték a két tengelyen; az arányt a
+    // Python adja a layout.meta-ban, mert a Plotly a tengelytartományokat a kitöltéshez átírja)
+    var meta = gd.layout.meta || {}, aspect = meta.aspect || 0.7;
+    upd.height = n ? Math.min(gd._fullHeight, Math.round((gd.clientWidth - 20) * aspect + 170)) : gd._fullHeight;
+    if (meta.xr) { upd['xaxis.range'] = meta.xr.slice(); upd['yaxis.range'] = meta.yr.slice(); }
     (gd.layout.annotations || []).forEach(function (a, i) {
       if (a.name === 'tema') upd['annotations[' + i + '].visible'] = !n;
       if (a.name === 'kiemelt') {
@@ -259,6 +326,7 @@ gd.on('plotly_click', function (ev) {
       upd['sliders[0].x'] = n ? 0.3 : 0.1;
       upd['sliders[0].len'] = n ? 0.7 : 0.9;
     }
+    gd.style.height = upd.height + 'px';                     // a to_html rögzített div-magassága is igazodjon
     Plotly.relayout(gd, upd);
   }
   fit();
