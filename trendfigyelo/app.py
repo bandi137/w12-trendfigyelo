@@ -57,6 +57,7 @@ class TrendApp:
         sources = "\n".join(f"{n}. [{i}]({report.arxiv_url(i)}) – {r.title} ({r.month})"
                             for n, (i, r) in enumerate(hits.iterrows(), 1))
         warn = f"\n\n> ⚠ A modell nem kapott forrásra is hivatkozott: {', '.join(entry['invalid'])}" if entry["invalid"] else ""
+        sources = sources or "_A megadott időszakban nincs cikk._"
         return f"{linked}{warn}\n\n**Források**\n\n{sources}"
 
     def compute_trends(self, n_topics=None):
@@ -260,14 +261,16 @@ class TrendApp:
 
     def launch(self, share=True, password=None, user="w12", **kwargs):
         """A felület indítása. A nyilvános gradio.live linket jelszó védi: a jelszó a Colab Secrets `UI_PASSWORD`
-        titka (vagy a `password` paraméter). Jelszó nélkül csak figyelmeztetéssel indul, mert a linket ismerő
-        bárki közzétehetne a GITHUB_TOKEN-nel."""
+        titka (vagy a `password` paraméter). Nyilvános linkkel (share=True) jelszó nélkül nem indul el, mert a
+        linket ismerő bárki közzétehetne a GITHUB_TOKEN-nel és használhatná a Gemini API-keretet.
+        Helyi indításnál (share=False) jelszó nélkül is elindul."""
         password = password or colab_secret("UI_PASSWORD")
         if password:
             kwargs.setdefault("auth", (user, password))
             kwargs.setdefault("auth_message", "W12 trendfigyelő – add meg a felhasználónevet és a jelszót.")
             print(f"A felület jelszóval védett (felhasználónév: {user}).")
-        else:
-            print("FIGYELEM: nincs UI_PASSWORD a Colab Secrets fülön, a felület jelszó nélkül, bárki számára elérhető.")
+        elif share:
+            raise RuntimeError("A nyilvános felület jelszó nélkül nem indul el. Adj meg egy UI_PASSWORD titkot a "
+                               "Colab 🔑 Secrets fülön (és engedélyezd a notebooknak), majd futtasd újra ezt a cellát.")
         self.ui = self.build_ui()
         return self.ui.launch(share=share, **kwargs)

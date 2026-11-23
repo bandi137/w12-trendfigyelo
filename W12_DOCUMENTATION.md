@@ -1,6 +1,6 @@
 # W12 – Kutatási trendfigyelő RAG-gal
 
-**Tárgy:** Alkalmazott mesterségesintelligencia-modellek (BME) · **Leadás:** 2026. november 16. · **Frissítve:** 2026. november 23. (a határidő meghosszabbítása után; a változásokat a 4.7., az 5.10–5.11. és a 7. pont írja le)
+**Tárgy:** Alkalmazott mesterségesintelligencia-modellek (BME) · **Leadás:** 2026. november 16. · **Frissítve:** 2026. november 23. (a határidő meghosszabbítása után; a változásokat a 4.7., az 5.10–5.11., a 6. és a 7. pont írja le)
 
 | | |
 |---|---|
@@ -73,7 +73,7 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 | Tématérkép | felügyelet nélküli UMAP (`umap-learn`, koszinusz-távolság), a koordináták a Drive-on; a témák összehúzása megjelenítéskor, állítható erősséggel; interaktív Plotly-térkép hónapcsúszkával (lásd 4.7) |
 | Felület | Gradio (nyilvános `gradio.live` link, jelszóval védve: Colab Secrets `UI_PASSWORD`) |
 | Közzététel | a jelentés egyetlen commitban kerül a repó `docs/` mappájába a GitHub REST API-val (Colab Secrets: `GITHUB_TOKEN`); archívum dátum szerint |
-| Tesztek | 32 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
+| Tesztek | 35 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
 
 ### 4.2. A megoldás és az ellenőrzés dokumentumai
 
@@ -136,14 +136,14 @@ A keresést 20, fele részben magyar, fele részben angol kérdésen értékelt�
 
 A mérés forrásai: [kerdesek.csv](eval/kerdesek.csv) és [eval.csv](eval/eval.csv). Nyolc kiválasztott kérdés válaszát külön is értékeltük 1–5 skálán (pontok: 5, 5, 5, 5, 4, 3, 3, 3; átlag 4,1); a válasznapló és a pontozás itt található: [qa_naplo.csv](eval/qa_naplo.csv), [qa_pontozas.csv](eval/qa_pontozas.csv).
 
-A leadás után Szilvia a teljes megoldást újra átnézte ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)): a Python-kódot, a notebookot, a dokumentációt és a közzétett jelentést, tesztekkel, modellválaszokkal és böngészős, mobilméretű próbákkal. Mind a 32 offline teszt lefutott. Több olyan hibát is reprodukált, amelyet a tesztek nem fednek le; ezek a 6. pontba kerültek. A legfontosabb új hibák: a nyilvános felület jelszó nélkül is elindulhat, a tématérképen a kattintásra nyíló arXiv-hivatkozás nem működik, és mobilméretben a trendgrafikon használhatatlanná szűkül.
+A leadás után Szilvia a teljes megoldást újra átnézte ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)): a Python-kódot, a notebookot, a dokumentációt és a közzétett jelentést, tesztekkel, modellválaszokkal és böngészős, mobilméretű próbákkal. Mind a 32 offline teszt lefutott. Több olyan hibát is reprodukált, amelyet a tesztek nem fednek le; ezek a 6. pontba kerültek. A legfontosabb új hibák: a nyilvános felület jelszó nélkül is elindulhat, a tématérképen a kattintásra nyíló arXiv-hivatkozás nem működik, és mobilméretben a trendgrafikon használhatatlanná szűkül. Ezeket az általa javasolt első körben még aznap kijavítottuk (6. pont, „Javítva”).
 
 ### 4.7. Tématérkép
 
 A leadás után a megoldást látványosabbá akartuk tenni. Ennek első eredménye a cikkek interaktív tématérképe ([Topic_Map.png](screenshots/Topic_Map.png)). A térkép a Gradio-felület Tématérkép fülén, a notebook 5. szakaszában és a közzétett jelentésben is megjelenik.
 
 - **Mit mutat:** minden pont egy cikk. A 768 dimenziós vektorokat a UMAP-módszer vetíti síkba, így a hasonló tartalmú cikkek egymás mellé kerülnek. A pont színe a cikk témájának növekedése (4.5): piros, ha a téma részaránya nőtt, kék, ha csökkent. A témák neve a téma foltja fölött áll, a három leggyorsabban növő témáé félkövér.
-- **Használat:** a térkép alatti csúszkával egy hónap cikkei emelhetők ki; a közzétett jelentésben a lejátszás végiglépteti a hónapokat. Egy pontra mutatva látszik a cikk címe, hónapja és témája.
+- **Használat:** a térkép alatti csúszkával egy hónap cikkei emelhetők ki; a közzétett jelentésben a lejátszás végiglépteti a hónapokat. Egy pontra mutatva látszik a cikk címe, hónapja és témája; a jelentésben kattintásra megnyílik a cikk az arXivon. A jelentésben a térkép mobilméretben és sötét módban is olvasható.
 - **Megjelenítés:** a nyers vetítésben a témák egymásba folynak. Hogy kivehetők legyenek, megjelenítéskor minden cikk a témája közepe felé húzódik, a távolság állítható hányadával (alapérték 0,5; 0 = a nyers felhő). Ezután a témák foltjai kissé széthúzódnak, hogy ne torlódjanak egymásra, majd a térkép fekvő tájolásba fordul. Ezek a lépések csak a megjelenítést érintik: a Drive-on tárolt koordináták nem változnak, a pontok pedig a vektorok szerinti szomszédaik közelében maradnak. A térkép felirata ezt jelzi is.
 - **Számítás:** a koordináták kiszámítása az első futáskor 1–2 perc, utána a Drive-ról töltődnek be (`terkep.npy`). Az összehúzás erőssége a notebookban (`MAP_PULL`) és a Gradio-felület csúszkáján újraszámolás nélkül állítható.
 
@@ -227,20 +227,27 @@ Az automatikus tesztek és a böngészőben, a tényleges futtatókörnyezetben 
 
 ## 6. Ismert hibák, szükséges módosítások és továbbfejlesztési lehetőségek
 
-A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek. A határidő meghosszabbítása után a tématérkép készült el (4.7); az alább felsorolt hibák javítása még hátravan. A lista Szilvia leadás utáni ellenőrzésének eredményeivel bővült ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)), ezért az első helyen az ott elsőként javasolt javítások állnak.
+A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek. A határidő meghosszabbítása után a tématérkép készült el (4.7). A lista Szilvia leadás utáni ellenőrzésének eredményeivel bővült ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)); az általa elsőként javasolt hibákat november 23-án kijavítottuk, a többi javítása még hátravan.
+
+### Javítva (2026. november 23.)
+
+Szilvia ellenőrzésének első köre. Mindegyikhez új offline teszt tartozik, a böngészőben látható javításokat a Colabéval azonos Plotly-verzióval (2.35) asztali és mobilméretben, világos és sötét módban is kipróbáltuk.
+
+| Hol | Hiba | Javítás |
+|---|---|---|
+| `app.py` – a felület indítása | `UI_PASSWORD` nélkül a nyilvános felület is elindult, csak figyelmeztetett; beállított `GITHUB_TOKEN` mellett a link birtokosa közzétehetett volna, és az API-keretet is használhatta volna. | Nyilvános (`share`) indításnál jelszó nélkül hibaüzenettel leáll; helyi indításnál jelszó nélkül is elindul. |
+| `rag.py` – hónapszűrés | Ha a kiválasztott időszakban kevesebb cikk volt a kértnél, a hiányt régebbi cikkekkel töltötte fel (−1 ponttal); üres időszaknál is adott találatot ([errors.md](eval/errors.md)). | Előbb szűr, és csak a szűrt cikkek közül választ; kevesebb cikknél kevesebb találatot ad. Üres időszaknál a nyelvi modellt meg sem hívja, és jelzi, hogy nincs forrás. |
+| `tmap.py` – kattintás a térképen | A cikkazonosítót ellenőrző JavaScript-mintában duplán escape-elt `\d` miatt minden azonosítót elutasított, így a kattintásra nem nyílt meg a cikk (5.11). | Nyers szövegként kerül a jelentésbe; a teszt a jelentésből kiolvasott mintát valódi azonosítókkal (és ha elérhető, Node.js-sel) ki is próbálja. A régi kódon a teszt elbukik. |
+| `tmap.py` – tématérkép a böngészőben | Keskenyre méretezés után üres maradt; sötét módban a szürke dobozokban a szürke feliratok nehezen voltak olvashatók. | Minden méretváltozáskor a teljes elrendezés (a szélesség is) újraszámolódik; a szélekhez közeli nevek nem lógnak ki, a csúszka nem csúszik a lejátszás gombra. Sötét módban sötét feliratdobozok világos szöveggel. |
+| `report.py` – trendgrafikon | A rögzített 270 pixeles jobb margó mobilméretben szinte elfogyasztotta a rajzterületet. | 640 pixel alatt a vonalvégi nevek helyett jelmagyarázat jelenik meg a grafikon alatt, a margó kicsi, a cím rövid; asztali méretben változatlan. |
 
 ### Szükséges módosítások
 
 | Hol | Mit | Miért |
 |---|---|---|
-| `app.py` – a felület indítása | Nyilvános (`share`) indításnál a jelszó legyen kötelező; `UI_PASSWORD` nélkül ne induljon el a felület. | Jelenleg csak figyelmeztet; beállított `GITHUB_TOKEN` mellett a link birtokosa közzétehetne, és az API-keretet is használhatná. A ténylegesen használt felület jelszóval védett. |
-| `tmap.py` – kattintás a térképen | A cikkazonosítót ellenőrző JavaScript-minta helyes escape-elése; teszt, amely a mintát valódi azonosítóval ki is próbálja. | A mintában túl sok escape-karakter van, ezért szabályos azonosítót is elutasít: a kattintásra nem nyílik meg a cikk (5.11). |
-| `report.py` – trendgrafikon | Keskeny képernyőn más elrendezés: a feliratok jelmagyarázatba, kisebb jobb margó. | A rögzített 270 pixeles jobb margó mobilméretben szinte elfogyasztja a rajzterületet. |
-| `tmap.py` – tématérkép a böngészőben | Átméretezés utáni újrarajzolás; sötét módban olvasható feliratok. | Egy próbában átméretezés után üres maradt (újratöltésre megjelent); sötét módban több felirat nehezen olvasható. |
 | `report.py`, notebook 5. szakasz | A növekedési mutató leírása a jelentésben és a grafikonon írja ki a simítást (4.5), és „a vizsgált havi mintában” növekvő témákról beszéljen. | A jelenlegi szöveg egyszerű hányadost ígér. |
 | `prompts.py` – `SUMMARY_PROMPT` | Csak a mért részarány-változásokról írjon; ok-okozati, minőségi („olcsóbb, okosabb”) és a kategória egészére vonatkozó állításokat ne tegyen; a simított mutató korlátját említse. | 5.8. |
 | `report.py`, notebook | A jelentés fejlécébe és egy `futas.json`-ba kerüljön a futás rekordja: kódverzió, modellek, beállítások, a `papers.csv` és az `embeddings.npy` SHA-256 ellenőrzőösszege. | Az eredmények utólag is azonosíthatók legyenek; a mostani futáshoz ezt kézzel rekonstruáltuk (4.4), ellenőrzőösszeg nélkül. |
-| `rag.py` – hónapszűrés | Előbb ténylegesen szűrje a jelölteket, és azokból válasszon. | Kevés cikknél régebbi cikkeket is visszaad −1 ponttal ([errors.md](eval/errors.md)). |
 | `rag.py` – nyelvfelismerés | Kézzel választható válasznyelv a felületen; az automatikus felismerés maradjon alapértelmezés. | Angol kérdésben az „MI”, a „van der Waals” vagy a „résumé” is magyar választ állít be ([errors.md](eval/errors.md)). |
 | `trends.py` – témanevek | A JSON értékeinek típusát is ellenőrizze, különben a tartalék elnevezést használja. | Érvényes, de rossz típusú JSON-nál kivétel ([errors.md](eval/errors.md)). |
 | `embed.py` – vektor-ujjlenyomat | Az ellenőrzőösszeg a címet és az absztraktot is tartalmazza. | Változatlan azonosító mellett módosult absztrakthoz a régi vektort használja ([errors.md](eval/errors.md)). |
@@ -277,4 +284,4 @@ A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felüle
 | 2026-11-16 | Leadás. Ezután az oktató meghosszabbította a határidőt. |
 | 2026-11-18 | A megoldás átnézése a látványosság szempontjából: tématérkép, kérdés a térképen, a kiértékelés hőtérképe, a trendgrafikon mobilos elrendezése, összefoglaló mutatók; a tématérkép készül el elsőként. |
 | 2026-11-22 | Tématérkép (UMAP) a jelentésben, a Gradio-felületen és a notebookban. Valódi adaton „mákos felhő” lett, és a hónapcsúszka eltüntette a pontokat (a Colab Plotly 2.x-e); javítás: témacímkékkel felügyelt UMAP, a csúszka animáció helyett átszínezéssel. |
-| 2026-11-23 | A szigetek torlódtak, majd túl élesnek bizonyultak; végleges változat: felügyelet nélküli UMAP és állítható összehúzás. Közzététel a tématérképpel (András, majd Szilvia). Szilvia leadás utáni ellenőrzése: 32 teszt, új hibák (jelszó nélküli indítás, a térkép hivatkozása, mobilgrafikon); dokumentáció frissítve. |
+| 2026-11-23 | A szigetek torlódtak, majd túl élesnek bizonyultak; végleges változat: felügyelet nélküli UMAP és állítható összehúzás. Közzététel a tématérképpel (András, majd Szilvia). Szilvia leadás utáni ellenőrzése: 32 teszt, új hibák (jelszó nélküli indítás, a térkép hivatkozása, mobilgrafikon); dokumentáció frissítve. Este az ellenőrzés első köre kijavítva: kötelező jelszó, hónapszűrés, a térkép hivatkozása, átméretezése és sötét módja, mobilos trendgrafikon (35 teszt). |

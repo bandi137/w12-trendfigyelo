@@ -279,12 +279,15 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
 
 
 # A jelentésben (fig.to_html(post_script=MAP_SCRIPT)): kattintásra megnyílik a cikk az arXivon; a „lejátszás” gomb
-# végiglépteti a csúszkát; keskeny képernyőn csak a kiemelt témák neve látszik. A {plot_id}-t a Plotly cseréli.
-MAP_SCRIPT = """
+# végiglépteti a csúszkát; keskeny képernyőn csak a kiemelt témák neve látszik; sötét módban sötét feliratdobozok
+# világos szöveggel. A {plot_id}-t a Plotly cseréli (egyszerű szövegcsere). Nyers (r""") szöveg: a JavaScript
+# pontosan azt kapja, ami itt áll (korábban a \\d duplán escape-elődött, és a hivatkozás nem működött).
+ARXIV_ID_JS = r"/^\d{4}\.\d{4,5}$/"
+MAP_SCRIPT = r"""
 var gd = document.getElementById('{plot_id}');
 gd.on('plotly_click', function (ev) {
   var p = ev.points && ev.points[0];
-  if (p && p.customdata && /^\\\\d{4}\\\\.\\\\d{4,5}$/.test(p.customdata[4]))
+  if (p && p.customdata && ARXIV_ID.test(p.customdata[4]))
     window.open('https://arxiv.org/abs/' + p.customdata[4], '_blank', 'noopener');
 });
 (function () {
@@ -308,34 +311,45 @@ gd.on('plotly_click', function (ev) {
   gd.on('plotly_sliderchange', function (ev) { if (timer && ev && ev.interaction) stop(); });   // kézi csúsztatás: megáll
 })();
 (function () {
-  var narrow = null;
+  var meta = gd.layout.meta || {}, aspect = meta.aspect || 0.7;
+  var fullTitle = gd.layout.title.text, fullHeight = gd.layout.height;
+  var dark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  // A teljes elrendezést minden méretváltozáskor újraszámolja, a szélességet is: a Plotly saját átméretezése
+  // ehhez képest később fut, ezért korábban keskenyre váltáskor a régi szélesség maradt, és a térkép üres lett.
   function fit() {
-    var n = gd.clientWidth < 640;
-    if (n === narrow) return;
-    narrow = n;
-    if (gd._fullTitle === undefined) { gd._fullTitle = gd.layout.title.text; gd._fullHeight = gd.layout.height; }
-    var upd = {'title.text': n ? gd._fullTitle.split('<br>')[0] : gd._fullTitle};
-    var xr = (gd.layout.meta && gd.layout.meta.xr) || gd.layout.xaxis.range, w = xr[1] - xr[0];
-    // keskeny képernyőn a magasság a térkép arányához igazodik (azonos lépték a két tengelyen; az arányt a
-    // Python adja a layout.meta-ban, mert a Plotly a tengelytartományokat a kitöltéshez átírja)
-    var meta = gd.layout.meta || {}, aspect = meta.aspect || 0.7;
-    upd.height = n ? Math.min(gd._fullHeight, Math.round((gd.clientWidth - 20) * aspect + 170)) : gd._fullHeight;
+    var width = gd.parentElement ? gd.parentElement.clientWidth : gd.clientWidth;
+    if (!width) return;
+    var n = width < 640, d = !!(dark && dark.matches);
+    var xr = meta.xr || gd.layout.xaxis.range, w = xr[1] - xr[0];
+    var upd = {'title.text': width < 900 ? fullTitle.split('<br>')[0] : fullTitle, width: width,
+               height: n ? Math.min(fullHeight, Math.round((width - 20) * aspect + 170)) : fullHeight,
+               'font.color': d ? '#b4bac2' : '#5f6670',
+               'sliders[0].font.color': d ? '#b4bac2' : '#5f6670',
+               'sliders[0].currentvalue.font.color': d ? '#b4bac2' : '#5f6670'};
     if (meta.xr) { upd['xaxis.range'] = meta.xr.slice(); upd['yaxis.range'] = meta.yr.slice(); }
     (gd.layout.annotations || []).forEach(function (a, i) {
-      if (a.name === 'tema') upd['annotations[' + i + '].visible'] = !n;
-      if (a.name === 'kiemelt') {
-        var f = (((a.showarrow ? a.ax : a.x)) - xr[0]) / w;
-        upd['annotations[' + i + '].xanchor'] = !n ? 'center' : f > 0.66 ? 'right' : f < 0.34 ? 'left' : 'center';
-      }
+      var k = 'annotations[' + i + ']', strong = a.name === 'kiemelt';
+      if (a.name === 'tema') upd[k + '.visible'] = !n;
+      // a felirat ne lógjon ki oldalt: a szélekhez közel a szél felé igazodik (becsült szövegszélességgel)
+      var px = ((a.showarrow ? a.ax : a.x) - xr[0]) / w * (width - 20) + 10;
+      var half = String(a.text).replace(/<[^>]+>/g, '').length * (strong ? 3.8 : 3.3) + 4;
+      upd[k + '.xanchor'] = px - half < 0 ? 'left' : px + half > width ? 'right' : 'center';
+      upd[k + '.bgcolor'] = d ? 'rgba(24,26,31,0.78)' : 'rgba(255,255,255,0.6)';
+      upd[k + '.font.color'] = strong ? (d ? '#f2f4f6' : '#1d2127') : (d ? '#c9ced5' : '#5f6670');
+      upd[k + '.arrowcolor'] = d ? '#9aa1aa' : '#5f6670';
     });
-    if (gd.layout.updatemenus && gd.layout.updatemenus.length) {
-      upd['sliders[0].x'] = n ? 0.3 : 0.1;
-      upd['sliders[0].len'] = n ? 0.7 : 0.9;
+    if (gd.layout.updatemenus && gd.layout.updatemenus.length) {   // a csúszka a lejátszás gomb mellől induljon
+      var sx = Math.min(0.35, 115 / width);
+      upd['sliders[0].x'] = sx;
+      upd['sliders[0].len'] = 1 - sx;
     }
     gd.style.height = upd.height + 'px';                     // a to_html rögzített div-magassága is igazodjon
     Plotly.relayout(gd, upd);
   }
+  var t = null;
+  function later() { clearTimeout(t); t = setTimeout(fit, 120); }
   fit();
-  window.addEventListener('resize', fit);
+  window.addEventListener('resize', later);
+  if (dark && dark.addEventListener) dark.addEventListener('change', fit);
 })();
-"""
+""".replace("ARXIV_ID.test", ARXIV_ID_JS + ".test")

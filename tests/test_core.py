@@ -86,6 +86,22 @@ def test_retrieve_and_month_filter(corpus):
     assert (df.loc[hits.index, "true"] == "halluc").all()
     late = tf.retrieve(df, emb, q("agents tool use"), k=5, month_from="2026-06")
     assert (late.month >= "2026-06").all()
+    last = df.month.max()                                    # kevesebb cikk a kért számnál: nem tölt fel régiekkel
+    n_last = int((df.month == last).sum())
+    few = tf.retrieve(df, emb, q("agents tool use"), k=n_last + 10, month_from=last)
+    assert len(few) == n_last and (few.month == last).all() and (few.score > -1).all()
+    assert list(few.score) == sorted(few.score, reverse=True)
+    assert tf.retrieve(df, emb, q("agents"), k=5, month_from="2099-01").empty   # üres időszak: nincs találat
+
+
+def test_rag_ask_empty_period_does_not_call_llm(corpus):
+    df, emb, q = corpus
+    class NoLLM:
+        @property
+        def models(self): raise AssertionError("a modellt nem szabad hívni")
+    rag = tf.RAG(df, emb, q, NoLLM(), "fake")
+    answer = rag.ask("Milyen ágensek vannak?", month_from="2099-01", show=False)
+    assert "nincs cikk" in answer and rag.log[-1]["sources"] == ""
 
 
 def test_rag_ask_flags_invented_citation(corpus):

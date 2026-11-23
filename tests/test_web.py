@@ -166,8 +166,12 @@ def test_launch_requires_password_when_secret_set(app, monkeypatch):
     assert seen["auth"] == ("w12", "titok") and seen["share"] is False
     seen.clear()
     monkeypatch.setattr("trendfigyelo.app.colab_secret", lambda name: None)
-    app.launch(share=False)
+    app.launch(share=False)                                     # helyi indítás jelszó nélkül is mehet
     assert "auth" not in seen
+    seen.clear()
+    with pytest.raises(RuntimeError, match="UI_PASSWORD"):      # nyilvános link jelszó nélkül: nem indul
+        app.launch(share=True)
+    assert not seen
 
 
 def test_map_coords_cached_and_recomputed(corpus, tmp_path):  # noqa: F811
@@ -235,3 +239,35 @@ def test_spread_islands_separates_and_keeps_layout():
     assert np.argmax(c[:, 0]) in (2, 3) and np.argmin(c[:, 0]) == 4         # a szigetek sorrendje megmarad
     rot = _landscape(np.c_[rng.normal(size=200) * 0.2, rng.normal(size=200) * 3])
     assert np.ptp(rot[:, 0]) > np.ptp(rot[:, 1])                            # fekvő tájolás
+
+
+def test_map_click_regex_accepts_real_arxiv_ids(app):
+    """A térkép kattintásos hivatkozása: a jelentésbe kerülő JavaScript-minta valódi azonosítót elfogad.
+    (A korábbi hiba: a mintában duplán escape-elt \\d miatt minden azonosítót elutasított.)"""
+    import re
+    import shutil
+    import subprocess
+    html = app.build_html()
+    m = re.search(r"&& (/\^.*?\$/)\.test\(p\.customdata\[4\]\)", html)
+    assert m, "a kattintás-kezelő mintája nincs a jelentésben"
+    js_regex = m.group(1)
+    pattern = js_regex[1:-1]
+    for good in ("2601.09725", "2512.1907"):
+        assert re.search(pattern, good), (pattern, good)
+    for bad in ("2601.097", "x2601.09725", "\\d{4}.12345"):
+        assert not re.search(pattern, bad), (pattern, bad)
+    if shutil.which("node"):                                 # ha van Node.js: a böngésző motorjával is
+        out = subprocess.run(["node", "-e", f"console.log({js_regex}.test('2601.09725'), {js_regex}.test('260.09725'))"],
+                             capture_output=True, text=True, timeout=30)
+        assert out.stdout.split() == ["true", "false"], out.stdout + out.stderr
+
+
+def test_trend_chart_switches_to_legend_on_narrow_screens(app):
+    app.compute_trends()
+    fig = app.figure()
+    ends = [a for a in fig.layout.annotations if a.name == "veg"]
+    assert len(ends) == app.s["n_show"] or len(ends) == len([t for t in fig.data if t.mode == "lines"])
+    assert fig.layout.showlegend is False                                   # asztalon: nevek a vonalak végén
+    assert all(t.showlegend for t in fig.data if t.mode == "lines")         # keskenyen: jelmagyarázat (a szkript kapcsolja)
+    html = app.build_html()
+    assert "width < 640" in html and "'veg'" in html and "showlegend: n" in html

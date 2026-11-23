@@ -9,13 +9,16 @@ from .prompts import LANGUAGE_RULES, RAG_PROMPT
 
 
 def retrieve(df, emb, query_vec, k=5, month_from=None):
-    """A kérdéshez legközelebbi k cikk (koszinusz-hasonlóság; a vektorok normáltak)."""
-    scores = emb @ query_vec
+    """A kérdéshez legközelebbi k cikk (koszinusz-hasonlóság; a vektorok normáltak).
+    month_from ("ÉÉÉÉ-HH"): csak az ettől a hónaptól kezdődő cikkek közül választ; ha ott kevesebb cikk van,
+    kevesebb találatot ad, üres időszaknál egyet sem (korábban a hiányt régebbi cikkekkel töltötte fel)."""
+    pos = np.arange(len(df))
     if month_from:
-        scores = np.where(df.month.values >= month_from, scores, -1)
-    idx = np.argsort(-scores)[:k]
-    hits = df.iloc[idx].copy()
-    hits["score"] = scores[idx].round(3)
+        pos = np.flatnonzero(df.month.values >= month_from)
+    scores = emb[pos] @ query_vec
+    order = pos[np.argsort(-scores)[:k]]
+    hits = df.iloc[order].copy()
+    hits["score"] = (emb[order] @ query_vec).round(3)
     return hits
 
 
@@ -55,7 +58,12 @@ class RAG:
 
     def ask(self, question, k=None, month_from=None, show=True):
         hits = self.retrieve(question, k, month_from)
-        answer = generate(self.llm, self.model, build_prompt(question, hits))
+        if hits.empty:                                   # üres időszak: nincs mit átadni a modellnek
+            answer = (f"A megadott időszakban ({month_from} után) nincs cikk az adatbázisban, ezért nem tudok "
+                      "forrással alátámasztott választ adni." if detect_language(question) == "hu" else
+                      f"There are no papers in the database from {month_from} onward, so I cannot give a sourced answer.")
+        else:
+            answer = generate(self.llm, self.model, build_prompt(question, hits))
         cit = check_citations(answer, hits)
         self.log.append({"question": question, "answer": answer, "sources": ", ".join(hits.id), **cit})
         if show:

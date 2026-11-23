@@ -77,7 +77,8 @@ def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
 
     A legjobb N_HIGHLIGHT téma színes és vastag (mögötte halványan a nyers havi érték), a többi halványszürke;
     a nevek a vonalak végén állnak (nincs külön jelmagyarázat); az első és az utolsó `window` hónap sávval jelölve,
-    mert a növekedés ezek átlagának hányadosa. A vonalak 2 havi mozgóátlagok."""
+    mert a növekedés ezek átlagának hányadosa. A vonalak 2 havi mozgóátlagok.
+    Keskeny képernyőn (a jelentésben, TREND_SCRIPT) a vonalvégi nevek helyett jelmagyarázat jelenik meg alul."""
     import plotly.graph_objects as go
     top = list(topic_ids[:n])
     raw = share[top] * 100
@@ -85,10 +86,10 @@ def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
     months = list(smooth.index)
     fig = go.Figure()
 
-    for pos, label, x0, x1 in (("first", "bázis", -0.5, window - 0.5),
-                               ("last", "összehasonlítás", len(months) - window - 0.5, len(months) - 0.5)):
+    for side, label, x0, x1 in (("left", "bázis", -0.5, window - 0.5),
+                                ("right", "összehasonlítás", len(months) - window - 0.5, len(months) - 0.5)):
         fig.add_vrect(x0=x0, x1=x1, fillcolor="rgba(128,128,128,0.10)", line_width=0, layer="below",
-                      annotation_text=f"{label} ({window} hó)", annotation_position="top left",
+                      annotation_text=f"{label} ({window} hó)", annotation_position=f"top {side}",
                       annotation_font=dict(size=11, color="#7a7f87"))
 
     for rank in range(len(top) - 1, -1, -1):          # a kiemeltek kerüljenek legfelülre
@@ -99,11 +100,13 @@ def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
         if strong:
             fig.add_trace(go.Scatter(x=months, y=raw[t].round(2), mode="markers", showlegend=False, hoverinfo="skip",
                                      marker=dict(size=5, color=color, opacity=0.35)))
+        legend = (f"<b>{html.escape(short_name(names[t]['nev']))}</b>" if strong
+                  else html.escape(short_name(names[t]["nev"]))) + f" {growth[t]:.1f}×"
         fig.add_trace(go.Scatter(
-            x=months, y=smooth[t].round(2), mode="lines", showlegend=False, name=hover,
+            x=months, y=smooth[t].round(2), mode="lines", showlegend=True, name=legend, legendrank=rank,
             line=dict(width=3.2 if strong else 1.6, color=color, shape="spline", smoothing=0.6),
             opacity=1 if strong else 0.7,
-            hovertemplate="%{x}: %{y:.1f}%<extra>" + hover + "</extra>"))
+            hovertemplate="%{x}: %{y:.1f}%<extra>" + hover + "</extra>"))     # a jelmagyarázat csak keskenyen látszik
 
     ymax = float(max(smooth.max().max(), raw[top[:N_HIGHLIGHT]].max().max()))
     ys = spread_labels([float(smooth[t].iloc[-1]) for t in top], gap=0.055 * ymax, top=ymax * 1.05)
@@ -112,7 +115,8 @@ def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
         fig.add_annotation(x=months[-1], y=ys[rank], xanchor="left", xshift=8, showarrow=False, align="left",
                            text=(f"<b>{html.escape(short_name(names[t]['nev']))}</b>" if strong
                                  else html.escape(short_name(names[t]["nev"]))) + f"  {growth[t]:.1f}×",
-                           font=dict(size=12 if strong else 11, color=PALETTE[rank] if strong else "#7a7f87"))
+                           font=dict(size=12 if strong else 11, color=PALETTE[rank] if strong else "#7a7f87"),
+                           name="veg")
 
     fig.update_layout(
         title=dict(text=f"A leggyorsabban növő témák – arXiv {category}"
@@ -123,8 +127,41 @@ def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
         xaxis=dict(type="category", tickangle=-45, showgrid=False, range=[-0.5, len(months) - 0.5]),
         margin=dict(l=60, r=270, t=80, b=20), height=500 + 14 * max(0, len(top) - 8),
         hovermode="closest", showlegend=False,
+        legend=dict(orientation="h", x=0, xanchor="left", y=-0.2, yanchor="top", font=dict(size=11),
+                    traceorder="normal", itemclick=False, itemdoubleclick=False),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#7a7f87"))
     return fig
+
+
+# A jelentésben (fig.to_html(post_script=TREND_SCRIPT)): keskeny képernyőn (< 640 px) a vonalvégi nevek helyett
+# jelmagyarázat alul, kis jobb margó és rövid cím; a rögzített 270 px-es jobb margó mobilon szinte az egész
+# rajzterületet elvette. A {plot_id}-t a Plotly cseréli.
+TREND_SCRIPT = r"""
+(function () {
+  var gd = document.getElementById('{plot_id}');
+  var full = {title: gd.layout.title.text, height: gd.layout.height, margin: JSON.parse(JSON.stringify(gd.layout.margin)),
+              ytitle: (gd.layout.yaxis.title && gd.layout.yaxis.title.text) || ''};
+  var nLegend = gd.data.filter(function (t) { return t.mode === 'lines'; }).length;
+  function fit() {
+    var width = gd.parentElement ? gd.parentElement.clientWidth : gd.clientWidth;
+    if (!width) return;
+    var n = width < 640;
+    var upd = {width: width, showlegend: n, 'title.text': n ? full.title.split('<br>')[0] : full.title,
+               'margin.r': n ? 12 : full.margin.r, 'margin.l': n ? 44 : full.margin.l,
+               'margin.b': n ? 30 + 22 * nLegend : full.margin.b,
+               height: n ? 360 + 22 * nLegend : full.height,
+               'yaxis.title.text': n ? '%' : full.ytitle};
+    (gd.layout.annotations || []).forEach(function (a, i) {
+      if (a.name === 'veg') upd['annotations[' + i + '].visible'] = !n;
+    });
+    gd.style.height = upd.height + 'px';
+    Plotly.relayout(gd, upd);
+  }
+  var t = null;
+  fit();
+  window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(fit, 120); });
+})();
+"""
 
 
 def _table(df, columns, formats=None, classes=None):
@@ -161,7 +198,8 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
 
     sections = []
     top = table.head(n_show)
-    chart = fig.to_html(include_plotlyjs="cdn", full_html=False, config={"displayModeBar": False, "responsive": True}) \
+    chart = fig.to_html(include_plotlyjs="cdn", full_html=False, post_script=TREND_SCRIPT,
+                        config={"displayModeBar": False, "responsive": True}) \
         if fig is not None else ""
     sections.append(f"""
 <section id="trendek">
