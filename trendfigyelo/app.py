@@ -9,7 +9,7 @@ from datetime import datetime
 
 from . import report
 from .evaluate import evaluate, load_questions
-from .data import download_dates
+from .data import download_dates, per_month_limit, sampling_of
 from .publish import PublishError, list_archive, pages_url, publish_files
 from .tmap import PULL, map_coords, map_question, topic_map
 from .trends import find_topics, name_topics, summarize_trends, topic_trends, trend_table
@@ -128,7 +128,9 @@ class TrendApp:
 
     def meta(self):
         return dict(category=self.s["category"], n_papers=len(self.df),
-                    per_month=int(self.df.month.value_counts().max()), emb_dim=int(self.emb.shape[1]),
+                    per_month=per_month_limit(self.data_dir, sorted(self.df.month.unique()))
+                    or int(self.df.month.value_counts().max()),
+                    sampling=sampling_of(self.data_dir, sorted(self.df.month.unique())), emb_dim=int(self.emb.shape[1]),
                     months=f"{self.df.month.min()} – {self.df.month.max()}",
                     downloaded=download_dates(self.data_dir, sorted(self.df.month.unique())), emb_model=self.s["emb_model"],
                     llm_model=self.s["llm_model"], code_version=git_version(self.repo_dir),

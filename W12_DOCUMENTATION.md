@@ -41,10 +41,10 @@ A november 16-i leadás után az oktató meghosszabbította a határidőt. A meg
 ### 4.1. Felépítés
 
 ```
-arXiv API (cs.CL, 12 lezárt hónap × 400 cikk) ──► honapok/ÉÉÉÉ-HH.csv, papers.csv (Google Drive)
+arXiv API (cs.CL, 12 lezárt hónap × legfeljebb 3000 cikk, a hónap minden napjáról) ──► honapok/ÉÉÉÉ-HH.csv, papers.csv (Google Drive)
         │
         ▼
-multilingual-e5-base vektorok (4800 × 768) ──► embeddings.npy
+multilingual-e5-base vektorok (cikkszám × 768) ──► embeddings.npy
         │                                  │
         ▼                                  ▼
 RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulcsszavak
@@ -63,7 +63,7 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 | Elem | Megoldás |
 |---|---|
 | Futtatókörnyezet | Google Colab (T4 GPU); a notebook első cellája a GitHubról frissíti a kódot |
-| Adat | arXiv `cs.CL`, 2025-11 – 2026-10, havonta a 400 legutoljára beküldött cikk (4800 absztrakt); hónaponként tárolva a Drive-on, `FRISSITES` kapcsolóval (auto / mindig / soha) |
+| Adat | arXiv `cs.CL`, 2025-11 – 2026-10, havonta legfeljebb 3000 cikk, napi bontású letöltéssel a hónap minden napjáról (naponta legfeljebb kb. 100); a cs.CL-ben ez szinte a teljes havi anyag (kb. 2000 cikk/hó). Hónaponként tárolva a Drive-on, `FRISSITES` kapcsolóval (auto / mindig / soha). A 4–5. fejezet eddigi eredményei a korábbi, havi 400 cikkes, hónap végi mintából készültek (4800 absztrakt). |
 | Vektorizálás | `intfloat/multilingual-e5-base` (768 dimenzió), cím + absztrakt; a vektorok a Drive-on, cikkenkénti ellenőrzőösszeggel: csak az új vagy módosult cikkek vektorizálódnak újra, más modellnél mind |
 | Nyelvi modell | `gemini-3.5-flash-lite` a Gemini API-n (Colab Secrets: `GEMINI_API_KEY`), újrapróbálás kvótahibánál |
 | Visszakeresés | koszinusz-hasonlóság, a kérdéshez legközelebbi 5 cikk; opcionális hónapszűrés |
@@ -73,7 +73,7 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 | Tématérkép | felügyelet nélküli UMAP (`umap-learn`, koszinusz-távolság), a koordináták a Drive-on; a témák összehúzása megjelenítéskor, állítható erősséggel; interaktív Plotly-térkép hónapcsúszkával (lásd 4.7) |
 | Felület | Gradio (nyilvános `gradio.live` link, jelszóval védve: Colab Secrets `UI_PASSWORD`) |
 | Közzététel | a jelentés egyetlen commitban kerül a repó `docs/` mappájába a GitHub REST API-val (Colab Secrets: `GITHUB_TOKEN`); archívum dátum szerint |
-| Tesztek | 48 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
+| Tesztek | 52 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
 
 ### 4.2. A megoldás és az ellenőrzés dokumentumai
 
@@ -111,10 +111,10 @@ A jelenleg közzétett jelentés (2026. november 24., 22:41) futásának adatai:
 A korábbi jelentések az archívumban változatlanul elérhetők. A leadáskor közzétett november 15-i és a november 23-i jelentés más letöltésből készült (2026-11-12, Szilvia Drive-ja; kódverzió [`172b47e`](https://github.com/bandi137/w12-trendfigyelo/commit/172b47e), illetve [`4006a75`](https://github.com/bandi137/w12-trendfigyelo/commit/4006a75)), mert mindketten a saját Drive-unkon tároljuk az adatot. A két letöltés kissé eltér, ezért a témák neve és a növekedési számok is: a leggyorsabban növő téma a november 15-i jelentésben „Keresőoptimalizálás és értékelés” (10,1×), a november 24-iben „Bizonyítékalapú értékelés” (9,25×), hasonló, általános kulcsszavakkal. A kiértékelés eredménye mindkettőnél azonos (4.6). A végleges jelentést egyetlen, megnevezett letöltésből készítjük ([eval/ellenorzes.md](eval/ellenorzes.md), 2. pont); a dokumentáció többi száma a november 12-i letöltésre vonatkozik.
 | Vektormodell | `intfloat/multilingual-e5-base` |
 | Nyelvi modell | `gemini-3.5-flash-lite` |
-| Beállítások | 12 hónap × 400 cikk, 25 téma, 5 átadott cikk, növekedési ablak 3 hónap |
+| Beállítások | 12 hónap × 400 cikk (hónap végi minta; az új alapbeállítás legfeljebb 3000 cikk/hó, napi bontásban), 25 téma, 5 átadott cikk, növekedési ablak 3 hónap |
 | A cikkállomány ellenőrzőösszege | nem rögzítettük; lásd a 6. pontot |
 
-**A mintavétel korlátja.** A rendszer havonta legfeljebb 400 cikket vesz át, az arXiv API-tól beküldési dátum szerint csökkenő sorrendben, tehát a hónap *utolsó* beküldéseit. A feltöltött állományban ezek a hónapok utolsó 3–11 napját fedik le: például szeptemberben szeptember 28–30. szerepel. Ez befolyásolhatja a témák részarányát, ezért a jelentés eredményei *a vizsgált havi mintában* növekvő témákról szólnak, nem a kategória egészéről.
+**A mintavétel korlátja.** A rendszer havonta legfeljebb 400 cikket vesz át, az arXiv API-tól beküldési dátum szerint csökkenő sorrendben, tehát a hónap *utolsó* beküldéseit. A feltöltött állományban ezek a hónapok utolsó 3–11 napját fedik le: például szeptemberben szeptember 28–30. szerepel. Ez befolyásolhatja a témák részarányát, ezért a jelentés eredményei *a vizsgált havi mintában* növekvő témákról szólnak, nem a kategória egészéről. A november 24-i változat ezt megszünteti: a letöltés napi bontású, a hónap minden napjáról legfeljebb `PER_MONTH`/(a hónap napjai) cikket vesz át, és `PER_MONTH = 3000` mellett gyakorlatilag a teljes havi anyagot (6. pont). A végleges jelentés ebből az új letöltésből készül.
 
 ### 4.5. A növekedési mutató
 
@@ -203,7 +203,7 @@ Az ilyen hibákra számítottunk. A prototípus tesztelése konkrétan megmutatt
 
 Egy továbbfejlesztett vagy érzékenyebb alkalmazásnál mindenképpen többszintű ellenőrzést tartanánk szükségesnek. Ennek részletes megtervezése még további feladat. A mostani megoldásban a visszakeresési mérés, a forrásazonosítók ellenőrzése és a kiválasztott válaszok tartalmi összevetése ad támpontot a korlátok megismeréséhez.
 
-A trendek értelmezésénél is fontos a mérés határa: havi 400 cikk mintáját vizsgáljuk. A feltöltött állományban ezek a hónapok utolsó 3–11 napját fedik le, ezért a megfigyelt részarányváltozást a vizsgált mintára kell vonatkoztatni. A növekedési mutató simítást is alkalmaz (4.5). A húszkérdéses tesztben a magyar és angol kérdések eltérő témájúak, így eredményeik különbségéből a nyelv önálló hatása nem állapítható meg.
+A trendek értelmezésénél is fontos a mérés határa: havi 400 cikk mintáját vizsgáljuk. A feltöltött állományban ezek a hónapok utolsó 3–11 napját fedik le, ezért a megfigyelt részarányváltozást a vizsgált mintára kell vonatkoztatni (az új, napi bontású letöltés ezt a korlátot megszünteti, 4.4). A növekedési mutató simítást is alkalmaz (4.5). A húszkérdéses tesztben a magyar és angol kérdések eltérő témájúak, így eredményeik különbségéből a nyelv önálló hatása nem állapítható meg.
 
 ### 5.8. A nyelvi modell által írt összefoglaló többet állít, mint amit a mérés alátámaszt
 
@@ -253,6 +253,8 @@ Szilvia ellenőrzésének első és második köre (a gyorsítótárak és a mod
 | `tmap.py` – „Témák összehúzása” csúszka | A csúszka 0 és kb. 0,6 között hatástalan volt: a foltok széthúzása az összehúzás után futott, és mindig ugyanakkora távolságra tolta szét őket, így a kép csak átméreteződött. | A foltok helyét a rögzített alapértékkel (0,5) számolja, a csúszka csak azt állítja, mennyire tömörek a foltok; a térkép elforgatása sem függ tőle. Az alapértéknél a kép változatlan. |
 | `app.py` – visszajelzés a felületen | A lassú műveleteknél (pl. „Összefoglaló írása”) kattintás után semmi nem jelezte, hogy a rendszer dolgozik. | A gomb „⏳ …” feliratot kap és letiltódik, alatta megjelenik, mi történik és nagyjából mennyi ideig tart; a végén (hiba esetén is) visszaáll. Minden lassú gombnál: Kérdezek, Térkép rajzolása, Témák számítása, Összefoglaló írása, Kiértékelés, Előnézet, Közzététel. |
 | `app.py`, `tmap.py` – kérdés a térképen | A Kérdezz fülön a válasz alatti térkép nem követte a Tématérkép fül beállításait, és a források nem látszottak: mind egy kis foltban voltak, a csillag alatt. | A térkép lekerült a Kérdezz fülről; a Tématérkép fülön jelölőnégyzettel tehetők rá a kérdések (kérdés nélkül inaktív), a beállított összehúzással. A források számozott címkét kapnak, a kérdés köré legyezve; a kérdés rétegei SVG-rétegek, így mindig a pontok fölött vannak. |
+| `data.py` – mintavétel (400 cikk-hiba) | Havonta a 400 legutoljára beküldött cikket töltötte le, ami csak a hónap utolsó 3–11 napját fedte le (4.4). | Napi bontású letöltés: a hónap minden napjára külön lekérdezés, naponta legfeljebb `PER_MONTH`/(a hónap napjai) cikk (ha kevesebb jelent meg, mind); a notebookban `PER_MONTH = 3000`, ami a cs.CL-ben szinte a teljes havi anyag. A letöltés módja a `letoltes.json`-ba kerül; a hónap végi mintával letöltött hónapok egyszer automatikusan újratöltődnek. A jelentés a mintavételnek megfelelő szöveget írja ki. |
+| `tmap.py` – nagy adat a térképen | Több tízezer pont lassítaná a böngészőt (főleg mobilon), a jelentés pedig sok MB-os lenne. | 6000 pont fölött a képre hónaponként arányos, rögzített véletlen minta kerül; az elrendezés, a témák és nevük, valamint a kérdés forrásai az összes cikkből számolódnak. A cím jelzi a mintát. |
 | `llm.py` – a Gemini hívása | A futás megállt, amikor a Gemini túlterhelt volt (`503 UNAVAILABLE … high demand`): újrapróbálás csak kvótahibánál (429) volt. | Átmeneti szerverhibánál (500, 502, 503, 504) is újrapróbál, rövid, duplázódó várakozással (5, 10, 20, 40 mp); ha minden próbálkozás elfogy, érthető magyar hibaüzenetet ad. Nem átmeneti hibánál (pl. hibás kérés) azonnal leáll. |
 
 ### Szükséges módosítások
@@ -267,14 +269,13 @@ Szilvia ellenőrzésének első és második köre (a gyorsítótárak és a mod
 
 ### Továbbfejlesztési lehetőségek
 
-- **Reprezentatív mintavétel.** A hónap teljes cikkállományának letöltése, vagy a hónapon belül egyenletesen (pl. hetente) vett minta a „hónap utolsó napjai” torzítás helyett (4.4).
 - **A közzététel védelme.** A felület jelszava (Colab Secrets `UI_PASSWORD`) a mostani leadásban elkészült; ezen túl a Közzététel gombhoz külön megerősítés vagy külön jelszó, a `GITHUB_TOKEN` minimális jogosultsággal, és a közzétett jelentés automatikus ellenőrzése (pl. a témák száma, a dátum) a feltöltés előtt.
 - **Minőségi teszt erősebb modellel.** A technikai tesztekhez a gyors és olcsó `gemini-3.5-flash-lite` megfelelő; a RAG-válaszok minőségi teszteléséhez erősebb, érvelő modell (pl. `gemini-3.1-pro-preview`, fizetős API) adna tisztább képet. A modellnév egy helyen állítható.
 - **Kiértékelés bővítése.** Több tesztkérdés, nyelvenként azonos témákkal (azonos tartalmú magyar–angol kérdéspárok), megválaszolhatatlan kérdések és a feltárt hibákra célzott tesztek, hogy a magyar és az angol kérdések eltérése (hit@5: 6/10, illetve 10/10) a nyelv hatásaként értelmezhető legyen; a magyar kérdések angolra fordítása a keresés előtt (query translation) mint kipróbálható javítás.
 - **Hivatkozás-ellenőrzés javítással.** A tévesen írt azonosítót (egy számjegy eltérés) a rendszer a legközelebbi átadott azonosítóra javíthatná, és jelölhetné a javítást.
 - **Témacímkék minősége.** Gyűjtőtémák felismerése (pl. nagy méret és általános kulcsszavak), a témák számának adatvezérelt megválasztása, BERTopic-szerű hierarchikus témák. Témánként néhány reprezentatív cikk és kézzel javítható név megjelenítése; tartós témaazonosítók a futások összevetéséhez. A „Keresőoptimalizálás és értékelés” név felülvizsgálandó: az általános kulcsszavak önmagukban nem igazolják.
 - **Pontosabb visszakeresés.** Kulcsszavas és szemantikus keresés összekapcsolása, a találatok újrarangsorolása; kevés vagy gyenge forrásnál annak jelzése, hogy nincs elegendő bizonyíték.
-- **Megismételhető futások és automatizált ellenőrzés.** Rögzített csomagverziók; a tesztek automatikus futtatása a GitHubon; a grafikonok böngészős ellenőrzése mobilméretben is; közös adatállomány a két Drive helyett (4.4).
+- **Megismételhető futások és automatizált ellenőrzés.** Rögzített csomagverziók; a tesztek automatikus futtatása a GitHubon; a grafikonok böngészős ellenőrzése mobilméretben is; közös adatállomány a két Drive helyett (4.4; egyelőre úgy oldjuk meg, hogy egyikünk tölt le, és megosztja a Drive-mappát).
 - **A látványosság további lépései.** A kiértékelés hőtérképe (melyik helyen lett meg a várt cikk, nyelvenként); összefoglaló mutatók a jelentés elején.
 - **Összehasonlítás kész eszközzel** (pl. NotebookLM) ugyanazokon a kérdéseken.
 - **Állandó szolgáltatás.** Ütemezett havi futás, saját gépen vagy szerveren futó változat helyi nyelvi modellel (Ollama); ennek költség- és erőforrástervét külön szakaszban készítenénk el (5.1).
@@ -295,4 +296,4 @@ Szilvia ellenőrzésének első és második köre (a gyorsítótárak és a mod
 | 2026-11-18 | A megoldás átnézése a látványosság szempontjából: tématérkép, kérdés a térképen, a kiértékelés hőtérképe, a trendgrafikon mobilos elrendezése, összefoglaló mutatók; a tématérkép készül el elsőként. |
 | 2026-11-22 | Tématérkép (UMAP) a jelentésben, a Gradio-felületen és a notebookban. Valódi adaton „mákos felhő” lett, és a hónapcsúszka eltüntette a pontokat (a Colab Plotly 2.x-e); javítás: témacímkékkel felügyelt UMAP, a csúszka animáció helyett átszínezéssel. |
 | 2026-11-23 | A szigetek torlódtak, majd túl élesnek bizonyultak; végleges változat: felügyelet nélküli UMAP és állítható összehúzás. Közzététel a tématérképpel (András, majd Szilvia). Szilvia leadás utáni ellenőrzése: 32 teszt, új hibák (jelszó nélküli indítás, a térkép hivatkozása, mobilgrafikon); dokumentáció frissítve. Este az ellenőrzés első köre kijavítva: kötelező jelszó, hónapszűrés, a térkép hivatkozása, átméretezése és sötét módja, mobilos trendgrafikon (35 teszt). Az oktató közölte az új határidőt: 2026. december 5. 00:00. |
-| 2026-11-24 | A Gemini túlterheltsége (503) megállította a 4. szakaszt; az újrapróbálás kiterjesztve az átmeneti szerverhibákra (36 teszt). Szilvia ellenőrzésének második köre: cikkenkénti vektor-gyorsítótár, a térkép teljes ellenőrzőösszege, a témanevek típusellenőrzése, választható válasznyelv, a hivatkozás nélküli válasz jelzése, a havi minta jelzése a jelentésben (43 teszt). A tématérkép tengelyeinek magyarázata; a kérdés és az átadott források megjelenítése a tématérképen a felületen, a jelentésben és a notebookban (47 teszt). Este: a „Témák összehúzása” csúszka hatástalan volt a széthúzás miatt, javítva; a lassú gomboknál várakozásjelzés (48 teszt). A kérdés térképe a Kérdezz fülről a Tématérkép fülre került (jelölőnégyzettel), a források számozott címkét kaptak. Új ellenőrzési fájl (`eval/ellenorzes.md`) Szilvia tesztelési feladatával; kiderült, hogy a közzétett jelentések két különböző letöltésből készültek (4.4). |
+| 2026-11-24 | A Gemini túlterheltsége (503) megállította a 4. szakaszt; az újrapróbálás kiterjesztve az átmeneti szerverhibákra (36 teszt). Szilvia ellenőrzésének második köre: cikkenkénti vektor-gyorsítótár, a térkép teljes ellenőrzőösszege, a témanevek típusellenőrzése, választható válasznyelv, a hivatkozás nélküli válasz jelzése, a havi minta jelzése a jelentésben (43 teszt). A tématérkép tengelyeinek magyarázata; a kérdés és az átadott források megjelenítése a tématérképen a felületen, a jelentésben és a notebookban (47 teszt). Este: a „Témák összehúzása” csúszka hatástalan volt a széthúzás miatt, javítva; a lassú gomboknál várakozásjelzés (48 teszt). A kérdés térképe a Kérdezz fülről a Tématérkép fülre került (jelölőnégyzettel), a források számozott címkét kaptak. Új ellenőrzési fájl (`eval/ellenorzes.md`) Szilvia tesztelési feladatával; kiderült, hogy a közzétett jelentések két különböző letöltésből készültek (4.4). Késő este: a „400 cikk”-hiba javítása – napi bontású letöltés, legfeljebb 3000 cikk/hó a hónap minden napjáról; a tématérkép 6000 pont fölött mintát rajzol (52 teszt). |

@@ -4,6 +4,7 @@ A modell- és cikkszövegek nem megbízható bemenetek: mindent HTML-escape-elü
 egy szűk, biztonságos Markdown-részhalmazt alakítunk át (félkövér, dőlt, felsorolás, arXiv-hivatkozás).
 """
 import html
+import math
 import re
 import textwrap
 from datetime import datetime
@@ -186,6 +187,18 @@ def _growth_cell(max_growth):
     return fmt
 
 
+def _sample_note(meta):
+    """A mintavétel leírása a trendek fölé: 'napi' – a hónap minden napjáról; 'honap_vege' – a régi letöltés."""
+    if not meta.get("per_month"):
+        return ""
+    n = int(meta["per_month"])
+    if meta.get("sampling") == "napi":
+        return (f" Havonta legfeljebb {n} cikk szerepel, a hónap minden napjáról (naponta legfeljebb kb. "
+                f"{math.ceil(n / 30)}; ha egy napon kevesebb jelent meg, mind), így a trendek az egész hónapot lefedik.")
+    return (f" Havonta legfeljebb {n} cikk szerepel: az arXiv-letöltés a hónap utolsó napjain beküldött cikkeket "
+            "veszi át, ezért a trendek erre a mintára vonatkoznak.")
+
+
 def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, eval_df=None, eval_summary=None,
                  archive=None, n_show=8, archive_prefix="archiv/", map_fig=None):
     """meta: dict(category, months, n_papers, downloaded, emb_model, llm_model, code_version, generated, authors, repo_url).
@@ -199,9 +212,7 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
 
     sections = []
     top = table.head(n_show)
-    sample_note = (f" Havonta legfeljebb {int(meta['per_month'])} cikk szerepel: az arXiv-letöltés a hónap utolsó "
-                   "napjain beküldött cikkeket veszi át, ezért a trendek erre a mintára vonatkoznak."
-                   if meta.get("per_month") else "")
+    sample_note = _sample_note(meta)
     chart = fig.to_html(include_plotlyjs="cdn", full_html=False, post_script=TREND_SCRIPT,
                         config={"displayModeBar": False, "responsive": True}) \
         if fig is not None else ""

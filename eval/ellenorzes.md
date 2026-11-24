@@ -19,9 +19,9 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| E1 | Nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. | Ha a november 24-i kóddal még nem futtattad, a 3. szakasz kiírja: „Vektorizálás (régi formátumú tárolás (egyszeri)): 4800 / 4800 cikk…”. A térkép egyszer újraszámolódik. Második futáskor mindkettő a Drive-ról töltődik. | |
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `48 passed` (a figyelmeztetések nem számítanak). | |
-| E3 | Nézd meg az 1. szakasz kiírásában és a jelentés fejlécében az „adat letöltve” dátumot. | Nálad várhatóan 2026-11-12, Andrásnál 2026-11-04 (lásd a 3. pontot). Írd ide, nálad mi áll. | |
+| E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | |
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `52 passed` (a figyelmeztetések nem számítanak). | |
+| E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | |
 
 ### 1.2. A felület védelme
 
@@ -67,7 +67,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | J3 | Telefonon (vagy keskeny ablakban). | A trendgrafikon alatt jelmagyarázat van, nem lóg ki; a térkép kitölti a szélességet, alatta nincs üres sáv; a kérdésválasztó a csúszka alatt van. | |
 | J4 | Sötét módban (telefon vagy böngésző beállítás). | A térkép feliratai, a karikák, a címkék és a menü olvashatók. | |
 | J5 | Méretezd át az ablakot széles → keskeny → széles. | A térkép egyszer sem marad üres. | |
-| J6 | Olvasd el a Trendek és a Tématérkép bevezetőjét. | Szerepel a havi minta (legfeljebb 400 cikk, a hónap végén beküldöttek), a tengelyek magyarázata és a vektorok dimenziója (768). | |
+| J6 | Olvasd el a Trendek és a Tématérkép bevezetőjét, és a térkép címét. | A Trendeknél: „Havonta legfeljebb 3000 cikk szerepel, a hónap minden napjáról…”. A térképnél a tengelyek magyarázata és a vektorok dimenziója (768); a címben „… cikk (a képen kb. 6000 pont, véletlen minta)”. | |
 
 ### 1.7. Dokumentáció
 
@@ -77,16 +77,22 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 
 ---
 
-## 2. Az adatállomány: döntés kell
+## 2. Az adatállomány: új, közös letöltés
 
-A közzétett jelentések nem ugyanabból a letöltésből készültek, mert mindenki a saját Drive-ján tárolja az adatot:
+**Előzmény.** A közzétett jelentések nem ugyanabból a letöltésből készültek, mert mindenki a saját Drive-ján tárolja az adatot:
 
 | Jelentés | Ki tette közzé | Adat letöltve | A leggyorsabban növő téma |
 |---|---|---|---|
 | 2026-11-15, 2026-11-23 | Szilvia | 2026-11-12 | „Keresőoptimalizálás és értékelés”, 10,1× |
 | 2026-11-24 | András | 2026-11-04 | „Bizonyítékalapú értékelés”, 9,25× |
 
-A két letöltés kissé eltér, ezért a témák és a növekedési számok is. A kiértékelés (hit@1 0,60 · hit@5 0,80 · hit@10 0,80) mindkettőnél azonos. A végleges jelentést és a dokumentáció számait **egyetlen, megnevezett letöltésből** kellene készíteni. Javaslat: a 2026-11-12-i (Szilvia Drive-ja), mert a leadott dokumentáció számai is ebből vannak.
+Mindkettő a régi, havi 400 cikkes minta volt, amely csak a hónap utolsó napjait fedte le („400 cikk”-hiba). A kiértékelés (hit@1 0,60 · hit@5 0,80 · hit@10 0,80) mindkettőnél azonos.
+
+**Döntés (2026. november 24.).** Az új kód napi bontásban tölt le, havonta legfeljebb 3000 cikket a hónap minden napjáról (a cs.CL-ben ez szinte a teljes havi anyag). A régi hónapok ezért mindkettőnknél újratöltődnének. Javaslat:
+
+1. **Egyikünk tölt le** (E1) a saját Drive-jára, és a `MyDrive/W12_trendfigyelo` mappát megosztja a másikkal (szerkesztési joggal).
+2. A másik a megosztott mappára parancsikont tesz a saját *Saját meghajtó*-jába (*Hozzáadás a Saját meghajtóhoz* / *Add shortcut to Drive*), ugyanazzal a névvel (`W12_trendfigyelo`); a saját régi mappáját előtte átnevezi (pl. `W12_trendfigyelo_regi`). Így a notebook útvonala változatlan, és mindketten ugyanazt az adatot használjuk.
+3. A végleges jelentés és a dokumentáció számai ebből az egy letöltésből készülnek; a dátumát ide írjuk: **…**
 
 ---
 
@@ -99,7 +105,7 @@ A [dokumentáció 6. pontja](../W12_DOCUMENTATION.md#6-ismert-hibák-szükséges
 - **Futásrekord.** Kódverzió, modellek, beállítások és az adatok ellenőrzőösszege a jelentés fejlécében és egy `futas.json`-ban.
 - **Hivatkozás-ellenőrzés.** A forrással alá nem támasztott állítás jelzése (most csak az ismeretlen azonosítót és a hivatkozás nélküli választ jelzi).
 - **Közzététel.** A közlendő kérdés–válaszok kiválasztása; az azonos napi közzététel felülírja az archív oldalt (november 24-én négy közzététel volt).
-- **Témanevek.** A gyűjtőtéma jelölése; a nevek futásonként változhatnak (lásd a 2. pontot).
+- **Témanevek.** A gyűjtőtéma jelölése; a nevek futásonként változhatnak (lásd a 2. pontot). Az új, nagyobb adaton érdemes kipróbálni több témát is (`N_TOPICS` 35–40).
 
 ---
 

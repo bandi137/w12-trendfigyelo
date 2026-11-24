@@ -2,16 +2,22 @@
 
 A Drive-on:
   honapok/ÉÉÉÉ-HH.csv  – egy lezárt hónap cikkei (egy lezárt hónap tartalma már nem változik)
-  letoltes.json        – hónaponként: mikor töltöttük le, hány cikk, milyen beállítással
+  letoltes.json        – hónaponként: mikor töltöttük le, hány cikk, milyen beállítással és mintavétellel
   papers.csv           – az aktuális időablak összes cikke egyben (ezt használja minden más)
+
+Mintavétel ("napi"): a hónap minden napjáról legfeljebb ceil(per_month / a hónap napjai) cikk. Ha egy napon ennél
+kevesebb cikket küldtek be, mind bekerül. Korábban a havi kvóta a beküldési dátum szerinti utolsó cikkekből jött
+(„a hónap vége”), ami a hónap utolsó napjaira torzított.
 """
 import json
+import math
 import os
-from datetime import date
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 
 REFRESH_MODES = ("auto", "mindig", "soha")
+SAMPLING = "napi"                 # a letoltes.json-ban is; régebbi mintavétellel letöltött hónapok újratöltődnek
 MONTH_DIR = "honapok"
 META_FILE = "letoltes.json"
 
@@ -30,17 +36,55 @@ def month_ranges(n, today=None):
     return out
 
 
-def download_month(category, start, end, label, per_month):
-    """Egy hónap cikkei az arXiv API-ból."""
+def day_ranges(start, end):
+    """A [start, end) időszak napjai arXiv submittedDate formában: ('ÉÉÉÉHHNN0000', 'ÉÉÉÉHHNN0000') párok."""
+    d0, d1 = datetime.strptime(start[:8], "%Y%m%d"), datetime.strptime(end[:8], "%Y%m%d")
+    days = []
+    while d0 < d1:
+        nxt = d0 + timedelta(days=1)
+        days.append((d0.strftime("%Y%m%d0000"), nxt.strftime("%Y%m%d0000")))
+        d0 = nxt
+    return days
+
+
+def per_day_quota(per_month, n_days):
+    """Napi kvóta: a havi plafon egyenletesen elosztva (felfelé kerekítve)."""
+    return max(1, math.ceil(per_month / n_days))
+
+
+def _arxiv_fetch():
+    """Lekérdező az arXiv API-hoz: (lekérdezés, legfeljebb hány cikk) -> sorok. Egy kliens az egész letöltéshez,
+    így a lekérdezések között betartja az arXiv által kért 3 másodperces szünetet."""
     import arxiv  # csak itt kell, a tesztekhez nem
     client = arxiv.Client(page_size=200, delay_seconds=3, num_retries=5)
-    search = arxiv.Search(query=f"cat:{category} AND submittedDate:[{start} TO {end}]",
-                          max_results=per_month, sort_by=arxiv.SortCriterion.SubmittedDate)
-    rows = [{"id": r.get_short_id().split("v")[0], "title": " ".join(r.title.split()),
-             "abstract": " ".join(r.summary.split()), "published": r.published.date().isoformat(),
-             "month": label, "authors": ", ".join(a.name for a in r.authors[:5]), "url": r.entry_id}
-            for r in client.results(search)]
-    return pd.DataFrame(rows, columns=["id", "title", "abstract", "published", "month", "authors", "url"])
+
+    def fetch(query, max_results):
+        search = arxiv.Search(query=query, max_results=max_results, sort_by=arxiv.SortCriterion.SubmittedDate)
+        return [{"id": r.get_short_id().split("v")[0], "title": " ".join(r.title.split()),
+                 "abstract": " ".join(r.summary.split()), "published": r.published.date().isoformat(),
+                 "authors": ", ".join(a.name for a in r.authors[:5]), "url": r.entry_id}
+                for r in client.results(search)]
+    return fetch
+
+
+COLUMNS = ["id", "title", "abstract", "published", "month", "authors", "url"]
+
+
+def download_month(category, start, end, label, per_month, fetch=None):
+    """Egy hónap cikkei az arXiv API-ból, napi bontásban: a hónap minden napjáról legfeljebb a napi kvótányi
+    (ceil(per_month / napok száma)); ha egy napon kevesebb cikk van, mind. Egy napon belül a legkésőbb beküldöttek
+    kerülnek be (ezt az arXiv rendezése adja). fetch: tesztekhez cserélhető lekérdező."""
+    fetch = fetch or _arxiv_fetch()
+    days = day_ranges(start, end)
+    quota = per_day_quota(per_month, len(days))
+    rows = []
+    for n, (d0, d1) in enumerate(days, 1):
+        rows += fetch(f"cat:{category} AND submittedDate:[{d0} TO {d1}]", quota)
+        if n % 10 == 0 or n == len(days):
+            print(f"  {label}: {n}/{len(days)} nap, eddig {len(rows)} cikk", flush=True)
+    df = pd.DataFrame(rows, columns=[c for c in COLUMNS if c != "month"])
+    df.insert(4, "month", label)
+    return df.drop_duplicates("id").reset_index(drop=True)[COLUMNS]
 
 
 def _read_meta(data_dir):
@@ -96,8 +140,8 @@ def load_or_download(data_dir, category, months, per_month, refresh="auto", toda
     for start, end, label in month_ranges(months, today):
         mpath = os.path.join(mdir, f"{label}.csv")
         m = meta.get(label, {})
-        cached = (refresh != "mindig" and os.path.exists(mpath)
-                  and m.get("category") == category and m.get("per_month") == per_month)
+        cached = (refresh != "mindig" and os.path.exists(mpath) and m.get("category") == category
+                  and m.get("per_month") == per_month and m.get("mintavetel") == SAMPLING)
         if cached:
             parts.append(pd.read_csv(mpath, dtype={"id": str}))
             loaded.append(label)
@@ -107,7 +151,7 @@ def load_or_download(data_dir, category, months, per_month, refresh="auto", toda
             raise RuntimeError(f"{label}: az arXiv 0 cikket adott vissza – próbáld újra később.")
         part.to_csv(mpath, index=False)
         meta[label] = dict(letoltve=(today or date.today()).isoformat(), cikkek=len(part),
-                           per_month=per_month, category=category)
+                           per_month=per_month, category=category, mintavetel=SAMPLING)
         _write_meta(data_dir, meta)       # hónaponként mentjük, hogy megszakadás után ne vesszen el
         parts.append(part)
         fetched.append(label)
@@ -119,6 +163,20 @@ def load_or_download(data_dir, category, months, per_month, refresh="auto", toda
           f"Drive-ról: {len(loaded)} hónap, most letöltve: {len(fetched)} hónap"
           + (f" ({', '.join(fetched)})" if fetched else "") + ".")
     return df
+
+
+def sampling_of(data_dir, month_labels):
+    """A megadott hónapok mintavétele a jelentéshez: 'napi', ha mind napi bontással jött, különben 'honap_vege'."""
+    meta = _read_meta(data_dir)
+    kinds = {meta.get(m, {}).get("mintavetel", "honap_vege") for m in month_labels}
+    return "napi" if kinds == {"napi"} else "honap_vege"
+
+
+def per_month_limit(data_dir, month_labels):
+    """A letöltéskor beállított havi plafon (PER_MONTH) a megadott hónapokra; None, ha nincs feljegyezve."""
+    meta = _read_meta(data_dir)
+    limits = [meta[m]["per_month"] for m in month_labels if m in meta and meta[m].get("per_month")]
+    return max(limits) if limits else None
 
 
 def download_dates(data_dir, month_labels):

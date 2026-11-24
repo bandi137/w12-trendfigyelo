@@ -28,7 +28,7 @@ def load_questions(path, known_ids=None):
         if known_ids is not None:
             unknown = [i for i in expected if i not in known_ids]
             if unknown:
-                print(f"⚠ {line_no}. sor: ezek az azonosítók nincsenek az adatok között (elírás?): {unknown}")
+                print(f"⚠ {line_no}. sor: ezek az azonosítók nincsenek az adatok között (elírás, vagy nincs a letöltött mintában?): {unknown}")
         questions.append({"q": question, "expected": expected, "keszitette": row[1].strip()})
     print(len(questions), "tesztkérdés betöltve:", path)
     return questions

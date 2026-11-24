@@ -189,6 +189,37 @@ def test_map_coords_cached_and_recomputed(corpus, tmp_path):  # noqa: F811
     assert np.array_equal(tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), labels=labels[:-1], method="tsne"), other)
 
 
+def test_display_sample_keeps_monthly_shares():
+    from trendfigyelo.tmap import display_sample
+    months = np.repeat(["2025-01", "2025-02", "2025-03"], [3000, 6000, 1000])
+    idx = display_sample(months, 2000, seed=1)
+    assert abs(len(idx) - 2000) <= 3 and np.all(np.diff(idx) > 0)              # rendezett, ismétlés nélkül
+    counts = {m: int((months[idx] == m).sum()) for m in ["2025-01", "2025-02", "2025-03"]}
+    assert counts == {"2025-01": 600, "2025-02": 1200, "2025-03": 200}        # a havi arány megmarad
+    assert np.array_equal(idx, display_sample(months, 2000, seed=1))          # determinisztikus
+    assert len(display_sample(months, None)) == len(months) == len(display_sample(months, 20000))
+
+
+def test_topic_map_samples_points_but_keeps_sources(corpus):  # noqa: F811
+    df, emb, q = corpus
+    df = df.copy()
+    df["topic"], _ = tf.find_topics(emb, (df.title + ". " + df.abstract).values, n_topics=4)
+    _, growth = tf.topic_trends(df.month, df.topic)
+    names = {int(t): {"nev": f"Téma {t}", "leiras": ""} for t in growth.index}
+    xy = np.random.default_rng(0).normal(size=(len(df), 2))
+    full = tf.topic_map(xy, df, names, growth, "cs.CL")
+    small = tf.topic_map(xy, df, names, growth, "cs.CL", max_points=len(df) // 3)
+    shown = sum(len(tr.x) for tr in small.data)
+    assert shown < len(df) and f"{len(df)} cikk (a képen {shown} pont" in small.layout.title.text
+    assert "a képen" not in full.layout.title.text
+    assert [a.text for a in small.layout.annotations] == [a.text for a in full.layout.annotations]  # nevek: mind
+    rag = tf.RAG(df, emb, q, llm=None, model="fake")
+    qmap = tf.map_question(rag, {"question": "agents", "sources": ", ".join(df.id[-3:])})
+    with_q = tf.topic_map(xy, df, names, growth, "cs.CL", max_points=5, questions=[qmap])
+    forras = next(tr for tr in with_q.data if tr.name == "q-forras")
+    assert len(forras.x) == 3                                                 # a források a mintától függetlenül
+
+
 def test_pull_blurs_topics_gradually():
     from trendfigyelo.tmap import _pull
     rng = np.random.default_rng(0)

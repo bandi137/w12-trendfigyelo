@@ -224,8 +224,27 @@ def map_question(rag, entry):
     return {"text": entry["question"], "scores": rag.emb @ rag.embed_query(entry["question"]), "sources": sources}
 
 
+MAX_POINTS = 6000      # ennél több pontnál a böngésző (főleg mobilon) lassul, a térkép pedig összefolyik
+
+
+def display_sample(months, max_points=MAX_POINTS, seed=0):
+    """A képre kerülő cikkek sorszámai (növekvő sorrendben): ha több a cikk max_points-nál, hónaponként
+    arányos, determinisztikus véletlen minta, így a havi arányok és a csúszka kiemelése hű marad."""
+    months = np.asarray(months)
+    n = len(months)
+    if max_points is None or n <= max_points:
+        return np.arange(n)
+    rng = np.random.default_rng(seed)
+    keep = []
+    for m in sorted(set(months.tolist())):
+        idx = np.flatnonzero(months == m)
+        k = max(1, int(round(len(idx) * max_points / n)))
+        keep.append(rng.choice(idx, size=min(k, len(idx)), replace=False))
+    return np.sort(np.concatenate(keep))
+
+
 def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, width_hint=1040, play_button=False,
-              pull=PULL, spread=True, questions=None, active_question=0):
+              pull=PULL, spread=True, questions=None, active_question=0, max_points=MAX_POINTS, seed=0):
     """Interaktív Plotly-tématérkép.
 
     coords: map_coords() eredménye; df: id, title, month, topic oszlopokkal (a sorrend egyezik a vektorokéval);
@@ -237,7 +256,10 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
     height: a kép magassága; ha nincs megadva, a térkép arányából adódik (a két tengely léptéke azonos).
     questions: kérdések a térképen (map_question() elemei): csillag a kérdés helyén, bekarikázva a modellnek
     átadott források, vonallal a kérdéshez kötve, számozott címkékkel. Több kérdésnél legördülő menüből
-    választható, melyik látszik; active_question: kezdetben melyik (sorszám vagy "last")."""
+    választható, melyik látszik; active_question: kezdetben melyik (sorszám vagy "last").
+    max_points: legfeljebb ennyi pont kerül a képre (hónaponként arányos véletlen minta, rögzített seed-del);
+    a térkép elrendezése, a témák helye és a nevek mindig az összes cikkből számolódnak, a kérdés forrásai
+    mindig látszanak. None: minden cikk."""
     import plotly.graph_objects as go
 
     xy = np.asarray(coords, dtype=float)
@@ -264,14 +286,14 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
         return [e(textwrap.shorten(str(r.title), 95, placeholder="…")), str(r.month),
                 e(textwrap.shorten(names[t]["nev"], 60)), f"{g[t]:.2f}×", str(r.id)]
 
-    custom = [hover_text(i) for i in range(len(df))]
+    shown = display_sample(df.month.to_numpy(), max_points, seed)
     month_arr = df.month.to_numpy()
     fig = go.Figure()
     for m in months:
-        idx = np.flatnonzero(month_arr == m)
+        idx = shown[month_arr[shown] == m]
         fig.add_trace(go.Scattergl(
             x=xy[idx, 0].round(3), y=xy[idx, 1].round(3), mode="markers", name=m, showlegend=False,
-            customdata=[custom[i] for i in idx],
+            customdata=[hover_text(i) for i in idx],
             marker=dict(size=4.5, color=lg[idx].round(3), colorscale=MAP_COLORSCALE, cmin=-LOG2_RANGE, cmax=LOG2_RANGE,
                         opacity=0.75, line=dict(width=0),
                         showscale=(m == months[0]),
@@ -317,6 +339,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
                       font=dict(size=10, color=INK), tickcolor=INK,
                       steps=[dict(label=s or "mind", method="restyle", args=step_args(s)) for s in steps])],
         title=dict(text=f"Tématérkép – arXiv {category}, {len(df)} cikk"
+                        + (f" (a képen {len(shown)} pont, véletlen minta)" if len(shown) < len(df) else "") +
                         "<br><sup>minden pont egy cikk, a hasonló cikkek egymás mellett; a cikkek a témájuk közepe felé húzva · "
                         "szín: a téma növekedése (utolsó 3 hó / első 3 hó)</sup>", x=0, font=dict(size=16)),
         xaxis=dict(visible=False, range=[lo, hi]),
@@ -333,7 +356,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
             type="buttons", direction="left", x=0, y=0, xanchor="left", yanchor="top", pad=dict(t=12, r=6),
             showactive=False, font=dict(size=11), buttons=[dict(label="▶ lejátszás", method="skip", args=[None])]))
     if questions:
-        _add_questions(fig, xy, df, custom, questions, menus,
+        _add_questions(fig, xy, df, hover_text, questions, menus,
                        active=len(questions) - 1 if active_question == "last" else int(active_question))
         fig.update_layout(title_text=fig.layout.title.text.replace(
             "</sup>", " · ★ a kérdés, ○ a modellnek átadott források</sup>"))
@@ -345,7 +368,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
 QUESTION_COLORS = dict(star="#f5b301", ink="#1d2127")
 
 
-def _add_questions(fig, xy, df, custom, questions, menus, active=0):
+def _add_questions(fig, xy, df, hover_text, questions, menus, active=0):
     """Kérdésenként három réteg és számozott címkék: vonalak a kérdéstől a forrásokig, bekarikázott források,
     legfelül csillag a kérdés helyén, és forrásonként egy „1”, „2”, … címke a kérdés köré legyezve, vékony vonallal a saját
     pontjához kötve. A források gyakran egy kis foltban, a csillag alatt vannak (a kérdés helye a leghasonlóbb cikkekből
@@ -370,7 +393,7 @@ def _add_questions(fig, xy, df, custom, questions, menus, active=0):
                                  visible=show, line=dict(color=QUESTION_COLORS["ink"], width=1.2)))
         fig.add_trace(go.Scatter(
             x=xy[src, 0].round(3), y=xy[src, 1].round(3), mode="markers", name="q-forras", showlegend=False,
-            visible=show, customdata=[[n + 1] + custom[i] for n, i in enumerate(src)],
+            visible=show, customdata=[[n + 1] + hover_text(i) for n, i in enumerate(src)],
             marker=dict(symbol="circle-open", size=14, color=QUESTION_COLORS["ink"], line=dict(width=2.2)),
             hovertemplate="<b>%{customdata[0]}. forrás:</b> %{customdata[1]}<br>%{customdata[2]} · arXiv "
                           "%{customdata[5]}<br>téma: %{customdata[3]}<extra></extra>"))
