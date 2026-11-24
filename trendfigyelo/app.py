@@ -197,6 +197,8 @@ class TrendApp:
 
             with gr.Tab("Tématérkép"):
                 gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek, a témák egymásba folynak. "
+                            "A tengelyeknek nincs jelentése és mértékegysége: a közelség hasonlóságot jelent, a "
+                            "távoli foltok közti távolság nem mérőszám. "
                             "Hogy a témák kivehetők legyenek, a cikkek a témájuk közepe felé húzódnak: ennek erőssége "
                             "a csúszkával állítható (0 = a nyers felhő). A szín a cikk témájának növekedése (piros: nő, "
                             "kék: csökken). A térkép alatti csúszkával egy hónap cikkei emelhetők ki (a lejátszás a "

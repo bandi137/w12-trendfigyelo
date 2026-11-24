@@ -227,7 +227,9 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
   cikkek egymás mellé kerülnek, és a témák egymásba folynak. Hogy a témák kivehetők legyenek, a cikkek a témájuk
   közepe felé húzódnak, a foltok pedig kissé széthúzódnak (ez csak a megjelenítést érinti). A szín a téma növekedése:
   piros, ha a részaránya nőtt, kék, ha csökkent. A csúszkával egy hónap cikkei emelhetők ki, a lejátszás végigléptet
-  a hónapokon. Egy pontra mutatva látszik a cikk címe, kattintásra megnyílik az arXivon.</p>
+  a hónapokon. Egy pontra mutatva látszik a cikk címe, kattintásra megnyílik az arXivon.
+  A tengelyeknek nincs jelentése és mértékegysége: a UMAP a 768 dimenziós vektorokat úgy vetíti két
+  dimenzióra, hogy a szomszédságok megmaradjanak. A közelség hasonlóságot jelent; a távoli foltok közti távolság nem mérőszám.</p>
   <div class="chart">{map_html}</div>
 </section>""")
 
