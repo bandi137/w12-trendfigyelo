@@ -349,3 +349,20 @@ def test_app_question_map_and_report(app):
     assert [t.name for t in fig.data].count("q-csillag") == 1
     html = app.build_html()
     assert "a csillag a kérdés helye" in html and "menüből választható" not in html
+
+
+def test_pull_stays_effective_with_spreading():
+    """A „Témák összehúzása” csúszka a széthúzás mellett is hat (korábban 0 és ~0,6 között hatástalan volt)."""
+    from trendfigyelo.tmap import PULL, _landscape, _layout, _pull, _spread_islands
+    rng = np.random.default_rng(3)
+    topics = np.repeat(np.arange(6), 80)
+    xy = rng.normal(size=(6, 2))[topics] * 0.6 + rng.normal(size=(480, 2))      # erősen átfedő témák
+
+    def compactness(p):
+        out = _layout(xy, topics, p, True)
+        c = np.array([np.median(out[topics == t], axis=0) for t in range(6)])
+        return np.mean([out[topics == t].std(axis=0).mean() for t in range(6)]) / c.std(axis=0).mean()
+    vals = [compactness(p) for p in (0, 0.25, 0.5, 0.75)]
+    assert vals[0] > vals[1] > vals[2] > vals[3]                               # fokozatosan tömörebb foltok
+    old = _landscape(_spread_islands(_pull(xy, topics, PULL), topics))          # az alapérték a korábbi kép
+    assert np.allclose(_layout(xy, topics, PULL, True), old, atol=1e-6)

@@ -182,6 +182,22 @@ class TrendApp:
                     raise gr.Error(f"{type(e).__name__}: {e}")
             return wrapped
 
+        def busy(triggers, btn, fn, inputs, outputs, status, msg):
+            """Lassú művelet visszajelzéssel: kattintáskor a gomb „⏳ …” feliratot kap és letiltódik, a `status`
+            mezőben megjelenik, mi történik; a végén (hiba esetén is) a gomb visszaáll, és ha a status mezőben még a
+            várakozó üzenet áll, eltűnik. triggers: események (pl. btn.click, q.submit), amelyek elindítják."""
+            label = btn.value
+
+            def start():
+                return gr.update(value=f"⏳ {label}…", interactive=False), f"⏳ {msg}"
+
+            def finish(cur):
+                return gr.update(value=label, interactive=True), ("" if str(cur or "").startswith("⏳") else cur)
+            for trig in triggers:
+                trig(start, None, [btn, status], queue=False) \
+                    .then(safe(fn), inputs, outputs) \
+                    .then(finish, status, [btn, status], queue=False)
+
         months = sorted(self.df.month.unique())
         view_cols = ["név", "leírás", "kulcsszavak", "cikkek", "növekedés"]
 
@@ -210,8 +226,9 @@ class TrendApp:
                         except Exception as e:  # noqa: BLE001
                             text += f"\n\n_(A térkép most nem rajzolható: {type(e).__name__}: {e})_"
                     return text, fig
-                ask_btn.click(safe(do_ask), [q, k, since, lang, show_map], [answer, q_map])
-                q.submit(safe(do_ask), [q, k, since, lang, show_map], [answer, q_map])
+                busy([ask_btn.click, q.submit], ask_btn, do_ask, [q, k, since, lang, show_map], [answer, q_map], answer,
+                     "A források keresése és a válasz megírása folyamatban (a nyelvi modell válasza általában "
+                     "5–30 másodperc).")
 
             with gr.Tab("Tématérkép"):
                 gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek, a témák egymásba folynak. "
@@ -225,9 +242,10 @@ class TrendApp:
                 with gr.Row():
                     map_pull = gr.Slider(0, 0.8, value=PULL, step=0.05, label="Témák összehúzása", scale=3)
                     map_btn = gr.Button("Térkép rajzolása", variant="primary", scale=1)
+                map_status = gr.Markdown()
                 map_plot = gr.Plot(show_label=False)
-                map_btn.click(safe(lambda p: self.map_figure(pull=p)), map_pull, map_plot)
-                map_pull.release(safe(lambda p: self.map_figure(pull=p)), map_pull, map_plot)
+                busy([map_btn.click, map_pull.release], map_btn, lambda p: self.map_figure(pull=p), map_pull, map_plot,
+                     map_status, "A térkép rajzolása folyamatban (elsőre a koordináták számítása 1–2 perc).")
 
             with gr.Tab("Trendek"):
                 with gr.Row():
@@ -235,6 +253,7 @@ class TrendApp:
                     n_topics = gr.Slider(min(5, nt0), max(40, nt0), value=nt0, step=1, label="Témák száma")
                     n_show = gr.Slider(min(3, ns0), max(15, ns0), value=ns0, step=1, label="Megjelenített témák")
                 trend_btn = gr.Button("Témák számítása", variant="primary")
+                trend_status = gr.Markdown()
                 plot = gr.Plot()
                 table = gr.Dataframe(wrap=True, interactive=False, column_widths=["22%", "43%", "21%", "7%", "7%"])
                 sum_btn = gr.Button("Összefoglaló írása")
@@ -251,9 +270,13 @@ class TrendApp:
                     if self.trends is None:
                         return gr.update(), gr.update()
                     return self.figure(), self.trends["table"][view_cols].head(int(ns))
-                trend_btn.click(safe(do_trends), [n_topics, n_show], [plot, table, summary, map_plot])
+                busy([trend_btn.click], trend_btn, do_trends, [n_topics, n_show], [plot, table, summary, map_plot],
+                     trend_status, "A témák számítása folyamatban: csoportosítás, kulcsszavak, témanevek a nyelvi "
+                     "modelltől és a tématérkép (néhány másodperctől 1–2 percig).")
                 n_show.release(safe(do_show), n_show, [plot, table])
-                sum_btn.click(safe(self.summarize), None, summary)
+                busy([sum_btn.click], sum_btn, self.summarize, None, summary, summary,
+                     "Az összefoglaló készül: a nyelvi modell a témák és a növekedési adatok alapján ír (általában "
+                     "10–60 másodperc).")
 
             with gr.Tab("Kiértékelés"):
                 gr.Markdown("A tesztkérdések a repó `eval/kerdesek.csv` fájljában vannak. Szerkesztés után futtasd "
@@ -267,7 +290,8 @@ class TrendApp:
                     if res is None:
                         return "Még nincs tesztkérdés az `eval/kerdesek.csv`-ben.", None
                     return " · ".join(f"**{k}:** {v:.2f}" for k, v in summ.items()), res
-                eval_btn.click(safe(do_eval), None, [eval_sum, eval_tab])
+                busy([eval_btn.click], eval_btn, do_eval, None, [eval_sum, eval_tab], eval_sum,
+                     "A kiértékelés fut: minden tesztkérdésre keresés a cikkek között.")
 
             with gr.Tab("Közzététel"):
                 gr.Markdown(f"A jelentés (trendek, összefoglaló, az itt feltett kérdések és válaszok, kiértékelés) "
@@ -279,13 +303,15 @@ class TrendApp:
                     pub_btn = gr.Button("Közzététel", variant="primary")
                 prev_file = gr.File(label="Előnézet")
                 status = gr.Markdown()
-                prev_btn.click(safe(self.preview), None, prev_file)
+                busy([prev_btn.click], prev_btn, self.preview, None, prev_file, status,
+                     "Az előnézet készül (ha kell, a témák és az összefoglaló is).")
 
                 def do_publish():
                     r = self.publish()
                     return (f"✅ Közzétéve. Weboldal: [{r['pages_url']}]({r['pages_url']}) · "
                             f"commit: [{r['sha'][:7]}]({r['commit_url']})")
-                pub_btn.click(safe(do_publish), None, status)
+                busy([pub_btn.click], pub_btn, do_publish, None, status, status,
+                     "Közzététel folyamatban: a jelentés elkészítése és feltöltése a GitHubra.")
         return ui
 
     def launch(self, share=True, password=None, user="w12", **kwargs):

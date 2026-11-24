@@ -135,6 +135,39 @@ def _spread_islands(xy, topics, sep=0.8, max_expand=3.0, iters=500):
     return xy
 
 
+def _layout(xy, topics, pull, spread):
+    """Megjelenítési elrendezés. A foltok helyét (a széthúzást) mindig a rögzített PULL összehúzással számolja ki,
+    és az így kapott eltolást alkalmazza a `pull` szerint összehúzott pontokra. Korábban a széthúzás a választott
+    összehúzás után futott, és mindig ugyanakkora távolságra tolta szét a foltokat: a kép csak átméreteződött, így a
+    „Témák összehúzása” csúszka 0 és kb. 0,6 között hatástalan volt. Így a foltok helye nem függ a csúszkától, a
+    csúszka csak azt állítja, mennyire tömörek a foltok."""
+    xy = np.asarray(xy, dtype=float)
+    out = _pull(xy, topics, pull)
+    ref = _pull(xy, topics, PULL)
+    if spread:
+        moved = _spread_islands(ref, topics)
+        for t in np.unique(topics):                          # témánként egy eltolás (a széthúzás csak eltol)
+            m = topics == t
+            out[m] += np.median(moved[m] - ref[m], axis=0)
+        ref = moved
+    return _landscape_fixed(out, _landscape_basis(ref))
+
+
+def _landscape_basis(xy):
+    """A fekvő tájoláshoz tartozó forgatás (a rögzített elrendezésből, hogy a csúszka ne forgassa el a térképet)."""
+    z = xy - np.median(xy, axis=0)
+    _, vecs = np.linalg.eigh(np.cov(z.T))
+    rot = vecs[:, ::-1].copy()
+    if np.median((z @ rot)[:, 0] ** 3) < 0:
+        rot[:, 0] *= -1
+    return np.median(xy, axis=0), rot
+
+
+def _landscape_fixed(xy, basis):
+    center, rot = basis
+    return (xy - center) @ rot
+
+
 def _landscape(xy):
     """Elforgatja a térképet, hogy a hosszabbik kiterjedése vízszintes legyen (a UMAP tengelyeinek nincs jelentése,
     így a forgatás semmit nem változtat; a képernyőn viszont jobban kitölti a helyet)."""
@@ -218,10 +251,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
     tids = [t for t in order if (topics == t).any()]
     texts = [f"{_label_name(names[t]['nev'])} {g[t]:.1f}×" for t in tids]
     label_px = {t: (len(s) * (7.4 if t in strong else 6.4) + 10, 18) for s, t in zip(texts, tids)}
-    xy = _pull(xy, topics, pull)
-    if spread:
-        xy = _spread_islands(xy, topics)
-    xy = _landscape(xy)
+    xy = _layout(xy, topics, pull, spread)
     span = np.ptp(xy, axis=0) * np.array([1.1, 1.14])
     scale = span[0] / (width_hint - 20)                           # adategység / képpont, mindkét tengelyen
     if height is None:
