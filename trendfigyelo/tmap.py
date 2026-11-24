@@ -225,7 +225,7 @@ def map_question(rag, entry):
 
 
 def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, width_hint=1040, play_button=False,
-              pull=PULL, spread=True, questions=None):
+              pull=PULL, spread=True, questions=None, active_question=0):
     """Interaktív Plotly-tématérkép.
 
     coords: map_coords() eredménye; df: id, title, month, topic oszlopokkal (a sorrend egyezik a vektorokéval);
@@ -236,7 +236,8 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
     spread: a foltok széthúzása, hogy ne torlódjanak és a nevük elférjen (csak a megjelenítést érinti).
     height: a kép magassága; ha nincs megadva, a térkép arányából adódik (a két tengely léptéke azonos).
     questions: kérdések a térképen (map_question() elemei): csillag a kérdés helyén, bekarikázva a modellnek
-    átadott források, vonallal a kérdéshez kötve. Több kérdésnél legördülő menüből választható, melyik látszik."""
+    átadott források, vonallal a kérdéshez kötve, számozott címkékkel. Több kérdésnél legördülő menüből
+    választható, melyik látszik; active_question: kezdetben melyik (sorszám vagy "last")."""
     import plotly.graph_objects as go
 
     xy = np.asarray(coords, dtype=float)
@@ -332,7 +333,8 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
             type="buttons", direction="left", x=0, y=0, xanchor="left", yanchor="top", pad=dict(t=12, r=6),
             showactive=False, font=dict(size=11), buttons=[dict(label="▶ lejátszás", method="skip", args=[None])]))
     if questions:
-        _add_questions(fig, xy, df, custom, questions, menus)
+        _add_questions(fig, xy, df, custom, questions, menus,
+                       active=len(questions) - 1 if active_question == "last" else int(active_question))
         fig.update_layout(title_text=fig.layout.title.text.replace(
             "</sup>", " · ★ a kérdés, ○ a modellnek átadott források</sup>"))
     if menus:
@@ -343,47 +345,64 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
 QUESTION_COLORS = dict(star="#f5b301", ink="#1d2127")
 
 
-def _add_questions(fig, xy, df, custom, questions, menus):
-    """Kérdésenként három réteg: vonalak a kérdéstől a forrásokig, bekarikázott források, csillag a kérdés helyén.
-    Egy kérdésnél mind látszik; többnél az első, és egy legördülő menü vált köztük (a hónap-rétegek mindig látszanak)."""
+def _add_questions(fig, xy, df, custom, questions, menus, active=0):
+    """Kérdésenként három réteg és számozott címkék: vonalak a kérdéstől a forrásokig, bekarikázott források,
+    legfelül csillag a kérdés helyén, és forrásonként egy „1”, „2”, … címke a kérdés köré legyezve, vékony vonallal a saját
+    pontjához kötve. A források gyakran egy kis foltban, a csillag alatt vannak (a kérdés helye a leghasonlóbb cikkekből
+    adódik), ezért külön karikaként alig látszanak; a címkék így is megkülönböztetik őket.
+    A rétegek SVG-rétegek (nem WebGL): mindig a pontok fölött vannak, és minden Plotly-verzió kirajzolja az üres
+    karikát. Egy kérdésnél mind látszik; többnél az `active` sorszámú, és egy legördülő menü vált köztük."""
     import plotly.graph_objects as go
     e = html.escape
     pos_of = {str(i): n for n, i in enumerate(df.id)}
     n_base = len(fig.data)
+    labels = {}                                               # kérdés sorszáma → a címke-annotációk indexei
     for qi, q in enumerate(questions):
         qx, qy = question_position(xy, q["scores"])
         src = [pos_of[i] for i in q["sources"] if i in pos_of]
-        show = qi == 0
+        show = qi == active
         text = e(textwrap.shorten(str(q["text"]), 120, placeholder="…"))
         lx, ly = [], []
         for i in src:
             lx += [qx, xy[i, 0], None]
             ly += [qy, xy[i, 1], None]
-        fig.add_trace(go.Scattergl(x=lx, y=ly, mode="lines", name="q-vonal", showlegend=False, hoverinfo="skip",
-                                   visible=show, line=dict(color=QUESTION_COLORS["ink"], width=1.2)))
-        fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scatter(x=lx, y=ly, mode="lines", name="q-vonal", showlegend=False, hoverinfo="skip",
+                                 visible=show, line=dict(color=QUESTION_COLORS["ink"], width=1.2)))
+        fig.add_trace(go.Scatter(
             x=xy[src, 0].round(3), y=xy[src, 1].round(3), mode="markers", name="q-forras", showlegend=False,
             visible=show, customdata=[[n + 1] + custom[i] for n, i in enumerate(src)],
-            marker=dict(symbol="circle-open", size=15, color=QUESTION_COLORS["ink"], line=dict(width=2.5)),
+            marker=dict(symbol="circle-open", size=14, color=QUESTION_COLORS["ink"], line=dict(width=2.2)),
             hovertemplate="<b>%{customdata[0]}. forrás:</b> %{customdata[1]}<br>%{customdata[2]} · arXiv "
                           "%{customdata[5]}<br>téma: %{customdata[3]}<extra></extra>"))
-        fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scatter(
             x=[round(float(qx), 3)], y=[round(float(qy), 3)], mode="markers", name="q-csillag", showlegend=False,
             visible=show, customdata=[[text]],
-            marker=dict(symbol="star", size=24, color=QUESTION_COLORS["star"],
+            marker=dict(symbol="star", size=20, color=QUESTION_COLORS["star"],
                         line=dict(width=1.5, color=QUESTION_COLORS["ink"])),
             hovertemplate="<b>Kérdés:</b> %{customdata[0]}<extra></extra>"))
+        labels[qi] = []
+        for n, i in enumerate(src):                           # címkék legyezve a kérdés köré (képpontban)
+            ang = np.deg2rad(-90 + 360 * n / max(len(src), 1) + 20)
+            labels[qi].append(len(fig.layout.annotations))
+            fig.add_annotation(
+                x=float(xy[i, 0]), y=float(xy[i, 1]), ax=float(58 * np.cos(ang)), ay=float(58 * np.sin(ang)),
+                text=f"<b>{n + 1}</b>", showarrow=True, arrowhead=0, arrowwidth=1, arrowcolor=QUESTION_COLORS["ink"],
+                standoff=7, font=dict(size=11, color=QUESTION_COLORS["ink"]), bgcolor="rgba(255,255,255,0.92)",
+                bordercolor=QUESTION_COLORS["ink"], borderwidth=1, borderpad=2, visible=show, name="q-cimke",
+                hovertext=e(f"{n + 1}. forrás: {textwrap.shorten(str(df.title.iloc[i]), 90, placeholder='…')}"))
     if len(questions) > 1:
         n_q = 3 * len(questions)
-        def vis(sel):
-            return [True] * n_base + [sel is not None and k // 3 == sel for k in range(n_q)]
-        buttons = [dict(label=f"{k + 1}. {textwrap.shorten(str(q['text']), 55, placeholder='…')}", method="restyle",
-                        args=[{"visible": vis(k)}]) for k, q in enumerate(questions)]
-        buttons.append(dict(label="(egyik kérdés sem)", method="restyle", args=[{"visible": vis(None)}]))
-        menus.append(dict(type="dropdown", direction="down", x=0, y=1, xanchor="left", yanchor="top", active=0,
+
+        def args(sel):
+            vis = [True] * n_base + [sel is not None and k // 3 == sel for k in range(n_q)]
+            ann = {f"annotations[{j}].visible": qi == sel for qi, idx in labels.items() for j in idx}
+            return [{"visible": vis}, ann]
+        buttons = [dict(label=f"{k + 1}. {textwrap.shorten(str(q['text']), 55, placeholder='…')}", method="update",
+                        args=args(k)) for k, q in enumerate(questions)]
+        buttons.append(dict(label="(egyik kérdés sem)", method="update", args=args(None)))
+        menus.append(dict(type="dropdown", direction="down", x=0, y=1, xanchor="left", yanchor="top", active=active,
                           showactive=True, font=dict(size=11), bgcolor="rgba(255,255,255,0.85)",
                           pad=dict(t=2, l=2), buttons=buttons))
-
 
 
 # A jelentésben (fig.to_html(post_script=MAP_SCRIPT)): kattintásra megnyílik a cikk az arXivon; a „lejátszás” gomb
@@ -437,6 +456,11 @@ gd.on('plotly_click', function (ev) {
     if (meta.xr) { upd['xaxis.range'] = meta.xr.slice(); upd['yaxis.range'] = meta.yr.slice(); }
     (gd.layout.annotations || []).forEach(function (a, i) {
       var k = 'annotations[' + i + ']', strong = a.name === 'kiemelt';
+      if (a.name === 'q-cimke') {                             // forráscímke: csak a színe igazodik a módhoz
+        upd[k + '.bgcolor'] = d ? 'rgba(24,26,31,0.92)' : 'rgba(255,255,255,0.92)';
+        upd[k + '.font.color'] = upd[k + '.bordercolor'] = upd[k + '.arrowcolor'] = d ? '#f2f4f6' : '#1d2127';
+        return;
+      }
       if (a.name === 'tema') upd[k + '.visible'] = !n;
       // a felirat ne lógjon ki oldalt: a szélekhez közel a szél felé igazodik (becsült szövegszélességgel)
       var px = ((a.showarrow ? a.ax : a.x) - xr[0]) / w * (width - 20) + 10;

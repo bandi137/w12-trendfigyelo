@@ -85,7 +85,7 @@ class TrendApp:
         return report.trend_figure(t["share"], t["growth"], t["names"], t["ids"], self.s["category"],
                                    n=int(n or self.s["n_show"]))
 
-    def map_figure(self, play_button=False, pull=None, questions=None):
+    def map_figure(self, play_button=False, pull=None, questions=None, active_question=0):
         """Tématérkép a mostani témákkal. A koordináták (felügyelet nélküli UMAP) csak a vektoroktól függenek: elsőre
         1–2 perc, utána a Drive-ról töltődnek. pull: a témák összehúzásának erőssége (0–0,8; lásd tmap.PULL), a
         jelentés is ezt használja. play_button: csak a HTML-jelentésben működik. questions: kérdések a térképen
@@ -98,14 +98,14 @@ class TrendApp:
             self.s["map_pull"] = float(pull)
         t = self.trends
         return topic_map(self.coords, self.df, t["names"], t["growth"], self.s["category"], play_button=play_button,
-                         pull=self.s.get("map_pull", PULL), questions=questions)
+                         pull=self.s.get("map_pull", PULL), questions=questions, active_question=active_question)
 
-    def question_map(self):
-        """Az utolsó kérdés a tématérképen (csillag + bekarikázott források). None, ha még nincs forrásos kérdés."""
-        entry = self.rag.log[-1] if self.rag.log else None
-        if not entry or not entry.get("sources"):
-            return None
-        return self.map_figure(questions=[map_question(self.rag, entry)])
+    def has_questions(self):
+        return any(e.get("sources") for e in self.rag.log)
+
+    def asked_questions(self):
+        """A felületen és a notebookban feltett, forrással megválaszolt kérdések a térképhez (tmap.map_question)."""
+        return [map_question(self.rag, e) for e in self.rag.log if e.get("sources")]
 
     def summarize(self):
         if self.trends is None:
@@ -142,8 +142,7 @@ class TrendApp:
             self.summarize()
         return report.build_report(self.meta(), self.trends["table"], self.figure(), self.summary, self.rag.log,
                                    self.df, self.eval_df, self.eval_summary, archive, self.s["n_show"], archive_prefix,
-                                   map_fig=self.map_figure(play_button=True, questions=[
-                                       map_question(self.rag, q) for q in self.rag.log if q.get("sources")] or None))
+                                   map_fig=self.map_figure(play_button=True, questions=self.asked_questions() or None))
 
     def preview(self):
         """A jelentés mentése a Drive-ra (letölthető előnézet), közzététel nélkül."""
@@ -214,21 +213,7 @@ class TrendApp:
                     lang = gr.Radio(list(LANG_CHOICES), value="automatikus", label="Válasz nyelve")
                 ask_btn = gr.Button("Kérdezek", variant="primary")
                 answer = gr.Markdown()
-                show_map = gr.Checkbox(value=True, label="A kérdés és a források a tématérképen")
-                q_map = gr.Plot(show_label=False)
-
-                def do_ask(qq, kk, mm, ll, sm):
-                    text = self.ask(qq, int(kk), None if mm == "(mind)" else mm, LANG_CHOICES.get(ll))
-                    fig = None
-                    if sm and self.rag.log:
-                        try:                                  # a térkép hibája ne vigye el a választ
-                            fig = self.question_map()
-                        except Exception as e:  # noqa: BLE001
-                            text += f"\n\n_(A térkép most nem rajzolható: {type(e).__name__}: {e})_"
-                    return text, fig
-                busy([ask_btn.click, q.submit], ask_btn, do_ask, [q, k, since, lang, show_map], [answer, q_map], answer,
-                     "A források keresése és a válasz megírása folyamatban (a nyelvi modell válasza általában "
-                     "5–30 másodperc).")
+                gr.Markdown("_A feltett kérdések és a forrásaik a **Tématérkép** fülön is megnézhetők._")
 
             with gr.Tab("Tématérkép"):
                 gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek, a témák egymásba folynak. "
@@ -238,14 +223,36 @@ class TrendApp:
                             "a csúszkával állítható (0 = a nyers felhő). A szín a cikk témájának növekedése (piros: nő, "
                             "kék: csökken). A térkép alatti csúszkával egy hónap cikkei emelhetők ki (a lejátszás a "
                             "közzétett jelentésben működik). Elsőre a térkép számítása 1–2 perc, utána a Drive-ról "
-                            "töltődik. A **Témák számítása** gomb (Trendek fül) a térképet is frissíti.")
+                            "töltődik. A **Témák számítása** gomb (Trendek fül) a térképet is frissíti. "
+                            "A Kérdezz fülön feltett kérdések a jelölőnégyzettel tehetők a térképre: a ★ a kérdés, a "
+                            "számozott karikák a modellnek átadott források; több kérdés közül a térkép bal felső "
+                            "menüjében lehet választani.")
                 with gr.Row():
                     map_pull = gr.Slider(0, 0.8, value=PULL, step=0.05, label="Témák összehúzása", scale=3)
-                    map_btn = gr.Button("Térkép rajzolása", variant="primary", scale=1)
+                    with gr.Column(scale=1):
+                        has_q = self.has_questions()
+                        show_q = gr.Checkbox(value=has_q, interactive=has_q,
+                                             label="A kérdés és a források a tématérképen",
+                                             info="Feltett kérdés nélkül nem választható.")
+                        map_btn = gr.Button("Térkép rajzolása", variant="primary")
                 map_status = gr.Markdown()
                 map_plot = gr.Plot(show_label=False)
-                busy([map_btn.click, map_pull.release], map_btn, lambda p: self.map_figure(pull=p), map_pull, map_plot,
+
+                def draw_map(p, sq):
+                    """A térkép a választott összehúzással; bejelölve a feltett kérdésekkel (a legutóbbi látszik, a
+                    többi a térkép bal felső menüjéből választható)."""
+                    qs = self.asked_questions() if sq else []
+                    return self.map_figure(pull=p, questions=qs or None, active_question="last")
+                busy([map_btn.click, map_pull.release, show_q.input], map_btn, draw_map, [map_pull, show_q], map_plot,
                      map_status, "A térkép rajzolása folyamatban (elsőre a koordináták számítása 1–2 perc).")
+
+                def do_ask(qq, kk, mm, ll):
+                    text = self.ask(qq, int(kk), None if mm == "(mind)" else mm, LANG_CHOICES.get(ll))
+                    ok = self.has_questions()
+                    return text, gr.update(interactive=ok, value=ok)
+                busy([ask_btn.click, q.submit], ask_btn, do_ask, [q, k, since, lang], [answer, show_q], answer,
+                     "A források keresése és a válasz megírása folyamatban (a nyelvi modell válasza általában "
+                     "5–30 másodperc).")
 
             with gr.Tab("Trendek"):
                 with gr.Row():
@@ -259,10 +266,10 @@ class TrendApp:
                 sum_btn = gr.Button("Összefoglaló írása")
                 summary = gr.Markdown()
 
-                def do_trends(nt, ns):
+                def do_trends(nt, ns, p, sq):
                     self.s["n_show"] = int(ns)
                     t = self.compute_trends(int(nt))
-                    return self.figure(), t[view_cols].head(int(ns)), "", self.map_figure()
+                    return self.figure(), t[view_cols].head(int(ns)), "", draw_map(p, sq)
 
                 def do_show(ns):
                     """A megjelenített témák számának változtatása nem számol újra: ugyanazokból a témákból mutat többet/kevesebbet."""
@@ -270,7 +277,8 @@ class TrendApp:
                     if self.trends is None:
                         return gr.update(), gr.update()
                     return self.figure(), self.trends["table"][view_cols].head(int(ns))
-                busy([trend_btn.click], trend_btn, do_trends, [n_topics, n_show], [plot, table, summary, map_plot],
+                busy([trend_btn.click], trend_btn, do_trends, [n_topics, n_show, map_pull, show_q],
+                     [plot, table, summary, map_plot],
                      trend_status, "A témák számítása folyamatban: csoportosítás, kulcsszavak, témanevek a nyelvi "
                      "modelltől és a tématérkép (néhány másodperctől 1–2 percig).")
                 n_show.release(safe(do_show), n_show, [plot, table])

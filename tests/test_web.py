@@ -320,14 +320,23 @@ def test_topic_map_questions_layers_menu_and_slider(corpus):  # noqa: F811
     months = sorted(df.month.unique())
     names_ = [t.name for t in fig.data]
     assert names_[:len(months)] == months and names_[len(months):] == ["q-vonal", "q-forras", "q-csillag"] * 2
+    assert all(t.type == "scatter" for t in fig.data[len(months):])               # SVG-réteg: mindig a pontok fölött
     assert [t.visible for t in fig.data[len(months):]] == [True] * 3 + [False] * 3   # az első kérdés látszik
     star = fig.data[len(months) + 2]
     assert "<b>" not in star.customdata[0][0] and "★" in fig.layout.title.text      # escape-elt kérdés; jelmagyarázat
     assert len(fig.data[len(months) + 1].x) == 3                                    # három bekarikázott forrás
+    cimkek = [a for a in fig.layout.annotations if a.name == "q-cimke"]
+    assert [a.text for a in cimkek] == ["<b>1</b>", "<b>2</b>", "<b>3</b>"] + [f"<b>{n}</b>" for n in range(1, rag.top_k + 1)]
+    assert [a.visible for a in cimkek] == [True] * 3 + [False] * rag.top_k         # csak a látható kérdés címkéi
     menus = {m.type: m for m in fig.layout.updatemenus}
     assert fig.layout.updatemenus[0].type == "buttons"                              # a lejátszás az első (a JS erre épít)
     assert len(menus["dropdown"].buttons) == 3                                      # 2 kérdés + „egyik sem”
-    assert menus["dropdown"].buttons[1].args[0]["visible"][-3:] == [True] * 3
+    second = menus["dropdown"].buttons[1].args
+    assert second[0]["visible"][-3:] == [True] * 3 and menus["dropdown"].buttons[1].method == "update"
+    idx = [i for i, a in enumerate(fig.layout.annotations) if a.name == "q-cimke"]
+    assert [second[1][f"annotations[{i}].visible"] for i in idx] == [False] * 3 + [True] * rag.top_k
+    last = tf.topic_map(xy, df, names, growth, "cs.CL", questions=qs, active_question="last")
+    assert [t.visible for t in last.data[len(months):]] == [False] * 3 + [True] * 3
     for st in fig.layout.sliders[0].steps:                                          # a csúszka csak a hónap-rétegeket állítja
         assert list(st.args[1]) == list(range(len(months)))
     one = tf.topic_map(xy, df, names, growth, "cs.CL", questions=qs[:1])
@@ -343,9 +352,10 @@ def test_app_question_map_and_report(app):
             return types.SimpleNamespace(text=f"Válasz [{ids[0]}]." if ids else "{}")
     app.rag.llm = Cite()
     app.rag.log.clear()
-    assert app.question_map() is None
+    assert not app.has_questions() and app.asked_questions() == []
     app.ask("Milyen ágensek vannak?")
-    fig = app.question_map()
+    assert app.has_questions() and len(app.asked_questions()) == 1
+    fig = app.map_figure(questions=app.asked_questions(), active_question="last")
     assert [t.name for t in fig.data].count("q-csillag") == 1
     html = app.build_html()
     assert "a csillag a kérdés helye" in html and "menüből választható" not in html
