@@ -11,7 +11,7 @@ from . import report
 from .evaluate import evaluate, load_questions
 from .data import download_dates
 from .publish import PublishError, list_archive, pages_url, publish_files
-from .tmap import PULL, map_coords, topic_map
+from .tmap import PULL, map_coords, map_question, topic_map
 from .trends import find_topics, name_topics, summarize_trends, topic_trends, trend_table
 
 LANG_CHOICES = {"automatikus": None, "magyar": "hu", "angol": "en"}   # a felület választója → rag.ask(lang=)
@@ -85,10 +85,11 @@ class TrendApp:
         return report.trend_figure(t["share"], t["growth"], t["names"], t["ids"], self.s["category"],
                                    n=int(n or self.s["n_show"]))
 
-    def map_figure(self, play_button=False, pull=None):
+    def map_figure(self, play_button=False, pull=None, questions=None):
         """Tématérkép a mostani témákkal. A koordináták (felügyelet nélküli UMAP) csak a vektoroktól függenek: elsőre
         1–2 perc, utána a Drive-ról töltődnek. pull: a témák összehúzásának erőssége (0–0,8; lásd tmap.PULL), a
-        jelentés is ezt használja. play_button: csak a HTML-jelentésben működik."""
+        jelentés is ezt használja. play_button: csak a HTML-jelentésben működik. questions: kérdések a térképen
+        (tmap.map_question elemei)."""
         if self.trends is None:
             self.compute_trends()
         if self.coords is None:
@@ -97,7 +98,14 @@ class TrendApp:
             self.s["map_pull"] = float(pull)
         t = self.trends
         return topic_map(self.coords, self.df, t["names"], t["growth"], self.s["category"], play_button=play_button,
-                         pull=self.s.get("map_pull", PULL))
+                         pull=self.s.get("map_pull", PULL), questions=questions)
+
+    def question_map(self):
+        """Az utolsó kérdés a tématérképen (csillag + bekarikázott források). None, ha még nincs forrásos kérdés."""
+        entry = self.rag.log[-1] if self.rag.log else None
+        if not entry or not entry.get("sources"):
+            return None
+        return self.map_figure(questions=[map_question(self.rag, entry)])
 
     def summarize(self):
         if self.trends is None:
@@ -134,7 +142,8 @@ class TrendApp:
             self.summarize()
         return report.build_report(self.meta(), self.trends["table"], self.figure(), self.summary, self.rag.log,
                                    self.df, self.eval_df, self.eval_summary, archive, self.s["n_show"], archive_prefix,
-                                   map_fig=self.map_figure(play_button=True))
+                                   map_fig=self.map_figure(play_button=True, questions=[
+                                       map_question(self.rag, q) for q in self.rag.log if q.get("sources")] or None))
 
     def preview(self):
         """A jelentés mentése a Drive-ra (letölthető előnézet), közzététel nélkül."""
@@ -189,11 +198,20 @@ class TrendApp:
                     lang = gr.Radio(list(LANG_CHOICES), value="automatikus", label="Válasz nyelve")
                 ask_btn = gr.Button("Kérdezek", variant="primary")
                 answer = gr.Markdown()
+                show_map = gr.Checkbox(value=True, label="A kérdés és a források a tématérképen")
+                q_map = gr.Plot(show_label=False)
 
-                def do_ask(qq, kk, mm, ll):
-                    return self.ask(qq, int(kk), None if mm == "(mind)" else mm, LANG_CHOICES.get(ll))
-                ask_btn.click(safe(do_ask), [q, k, since, lang], answer)
-                q.submit(safe(do_ask), [q, k, since, lang], answer)
+                def do_ask(qq, kk, mm, ll, sm):
+                    text = self.ask(qq, int(kk), None if mm == "(mind)" else mm, LANG_CHOICES.get(ll))
+                    fig = None
+                    if sm and self.rag.log:
+                        try:                                  # a térkép hibája ne vigye el a választ
+                            fig = self.question_map()
+                        except Exception as e:  # noqa: BLE001
+                            text += f"\n\n_(A térkép most nem rajzolható: {type(e).__name__}: {e})_"
+                    return text, fig
+                ask_btn.click(safe(do_ask), [q, k, since, lang, show_map], [answer, q_map])
+                q.submit(safe(do_ask), [q, k, since, lang, show_map], [answer, q_map])
 
             with gr.Tab("Tématérkép"):
                 gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek, a témák egymásba folynak. "

@@ -169,8 +169,30 @@ def _place_labels(anchors, sizes, iters=300):
     return pos
 
 
+QUESTION_NEIGHBOURS = 10     # a kérdés helye ennyi leghasonlóbb cikk helyének súlyozott átlaga
+QUESTION_TEMP = 0.02         # a súlyozás élessége (koszinusz-hasonlóságban): kisebb → a legközelebbi cikk dominál
+
+
+def question_position(xy, scores, k=QUESTION_NEIGHBOURS, temp=QUESTION_TEMP):
+    """A kérdés helye a térképen: a hozzá leghasonlóbb k cikk (megjelenítési) helyének súlyozott átlaga.
+    Így a kérdés ugyanazokon a megjelenítési lépéseken megy át, mint a cikkek, és nem kell hozzá a UMAP-modell."""
+    scores = np.asarray(scores, dtype=float)
+    idx = np.argsort(-scores)[:k]
+    w = np.exp((scores[idx] - scores[idx].max()) / temp)
+    return (w[:, None] * np.asarray(xy)[idx]).sum(axis=0) / w.sum()
+
+
+def map_question(rag, entry):
+    """Egy kérdés a térképhez a RAG naplójából (rag.log eleme) vagy egy kérdésszövegből: a kérdés szövege, a
+    hasonlósága minden cikkhez, és a modellnek átadott források azonosítói."""
+    if isinstance(entry, str):
+        entry = {"question": entry, "sources": ", ".join(rag.retrieve(entry).id)}
+    sources = [i.strip() for i in str(entry.get("sources", "")).split(",") if i.strip()]
+    return {"text": entry["question"], "scores": rag.emb @ rag.embed_query(entry["question"]), "sources": sources}
+
+
 def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, width_hint=1040, play_button=False,
-              pull=PULL, spread=True):
+              pull=PULL, spread=True, questions=None):
     """Interaktív Plotly-tématérkép.
 
     coords: map_coords() eredménye; df: id, title, month, topic oszlopokkal (a sorrend egyezik a vektorokéval);
@@ -179,7 +201,9 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
     play_button: lejátszás gomb (csak a HTML-jelentésben működik, a MAP_SCRIPT-tel).
     pull: mennyire húzódjanak a cikkek a témájuk közepe felé (0: nyers felhő; lásd PULL).
     spread: a foltok széthúzása, hogy ne torlódjanak és a nevük elférjen (csak a megjelenítést érinti).
-    height: a kép magassága; ha nincs megadva, a térkép arányából adódik (a két tengely léptéke azonos)."""
+    height: a kép magassága; ha nincs megadva, a térkép arányából adódik (a két tengely léptéke azonos).
+    questions: kérdések a térképen (map_question() elemei): csillag a kérdés helyén, bekarikázva a modellnek
+    átadott források, vonallal a kérdéshez kötve. Több kérdésnél legördülő menüből választható, melyik látszik."""
     import plotly.graph_objects as go
 
     xy = np.asarray(coords, dtype=float)
@@ -250,7 +274,8 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
     # Hónapcsúszka: "mind" + hónaponként (a kiválasztott hónap erős, a többi halvány). Restyle, nem animáció.
     def step_args(sel):
         return [{"marker.opacity": [0.75 if sel is None else (0.95 if m == sel else 0.06) for m in months],
-                 "marker.size": [4.5 if sel is None or m != sel else 7 for m in months]}]
+                 "marker.size": [4.5 if sel is None or m != sel else 7 for m in months]},
+                list(range(len(months)))]                     # csak a hónap-rétegek (a kérdés-rétegek nem)
 
     steps = [None] + months
     y0, y1 = xy[:, 1].min() - 0.03 * span[1], xy[:, 1].max() + 0.05 * span[1]
@@ -267,15 +292,68 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
         yaxis=dict(visible=False, range=[y0, y1],
                    scaleanchor="x", scaleratio=1),                    # a szigetek alakja minden szélességen megmarad
         height=height, margin=dict(l=10, r=10, t=100, b=90), hovermode="closest", dragmode="pan",
-        meta=dict(aspect=round(float(np.ptp(xy[:, 1]) * 1.08 / (hi - lo)), 4),
+        meta=dict(aspect=round(float(np.ptp(xy[:, 1]) * 1.08 / (hi - lo)), 4), mb=90,
                   xr=[round(float(lo), 4), round(float(hi), 4)], yr=[round(float(y0), 4), round(float(y1), 4)]),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color=INK),
         hoverlabel=dict(font_size=12, align="left"))
+    menus = []
     if play_button:
-        fig.update_layout(updatemenus=[dict(
+        menus.append(dict(
             type="buttons", direction="left", x=0, y=0, xanchor="left", yanchor="top", pad=dict(t=12, r=6),
-            showactive=False, font=dict(size=11), buttons=[dict(label="▶ lejátszás", method="skip", args=[None])])])
+            showactive=False, font=dict(size=11), buttons=[dict(label="▶ lejátszás", method="skip", args=[None])]))
+    if questions:
+        _add_questions(fig, xy, df, custom, questions, menus)
+        fig.update_layout(title_text=fig.layout.title.text.replace(
+            "</sup>", " · ★ a kérdés, ○ a modellnek átadott források</sup>"))
+    if menus:
+        fig.update_layout(updatemenus=menus)
     return fig
+
+
+QUESTION_COLORS = dict(star="#f5b301", ink="#1d2127")
+
+
+def _add_questions(fig, xy, df, custom, questions, menus):
+    """Kérdésenként három réteg: vonalak a kérdéstől a forrásokig, bekarikázott források, csillag a kérdés helyén.
+    Egy kérdésnél mind látszik; többnél az első, és egy legördülő menü vált köztük (a hónap-rétegek mindig látszanak)."""
+    import plotly.graph_objects as go
+    e = html.escape
+    pos_of = {str(i): n for n, i in enumerate(df.id)}
+    n_base = len(fig.data)
+    for qi, q in enumerate(questions):
+        qx, qy = question_position(xy, q["scores"])
+        src = [pos_of[i] for i in q["sources"] if i in pos_of]
+        show = qi == 0
+        text = e(textwrap.shorten(str(q["text"]), 120, placeholder="…"))
+        lx, ly = [], []
+        for i in src:
+            lx += [qx, xy[i, 0], None]
+            ly += [qy, xy[i, 1], None]
+        fig.add_trace(go.Scattergl(x=lx, y=ly, mode="lines", name="q-vonal", showlegend=False, hoverinfo="skip",
+                                   visible=show, line=dict(color=QUESTION_COLORS["ink"], width=1.2)))
+        fig.add_trace(go.Scattergl(
+            x=xy[src, 0].round(3), y=xy[src, 1].round(3), mode="markers", name="q-forras", showlegend=False,
+            visible=show, customdata=[[n + 1] + custom[i] for n, i in enumerate(src)],
+            marker=dict(symbol="circle-open", size=15, color=QUESTION_COLORS["ink"], line=dict(width=2.5)),
+            hovertemplate="<b>%{customdata[0]}. forrás:</b> %{customdata[1]}<br>%{customdata[2]} · arXiv "
+                          "%{customdata[5]}<br>téma: %{customdata[3]}<extra></extra>"))
+        fig.add_trace(go.Scattergl(
+            x=[round(float(qx), 3)], y=[round(float(qy), 3)], mode="markers", name="q-csillag", showlegend=False,
+            visible=show, customdata=[[text]],
+            marker=dict(symbol="star", size=24, color=QUESTION_COLORS["star"],
+                        line=dict(width=1.5, color=QUESTION_COLORS["ink"])),
+            hovertemplate="<b>Kérdés:</b> %{customdata[0]}<extra></extra>"))
+    if len(questions) > 1:
+        n_q = 3 * len(questions)
+        def vis(sel):
+            return [True] * n_base + [sel is not None and k // 3 == sel for k in range(n_q)]
+        buttons = [dict(label=f"{k + 1}. {textwrap.shorten(str(q['text']), 55, placeholder='…')}", method="restyle",
+                        args=[{"visible": vis(k)}]) for k, q in enumerate(questions)]
+        buttons.append(dict(label="(egyik kérdés sem)", method="restyle", args=[{"visible": vis(None)}]))
+        menus.append(dict(type="dropdown", direction="down", x=0, y=1, xanchor="left", yanchor="top", active=0,
+                          showactive=True, font=dict(size=11), bgcolor="rgba(255,255,255,0.85)",
+                          pad=dict(t=2, l=2), buttons=buttons))
+
 
 
 # A jelentésben (fig.to_html(post_script=MAP_SCRIPT)): kattintásra megnyílik a cikk az arXivon; a „lejátszás” gomb
@@ -294,7 +372,7 @@ gd.on('plotly_click', function (ev) {
   var timer = null;
   function show(i) {
     var st = gd.layout.sliders[0].steps;
-    Plotly.restyle(gd, st[i].args[0]);
+    Plotly.restyle(gd, st[i].args[0], st[i].args[1]);
     Plotly.relayout(gd, {'sliders[0].active': i});
   }
   function stop() { clearInterval(timer); timer = null; Plotly.relayout(gd, {'updatemenus[0].buttons[0].label': '▶ lejátszás'}); }
@@ -338,13 +416,34 @@ gd.on('plotly_click', function (ev) {
       upd[k + '.font.color'] = strong ? (d ? '#f2f4f6' : '#1d2127') : (d ? '#c9ced5' : '#5f6670');
       upd[k + '.arrowcolor'] = d ? '#9aa1aa' : '#5f6670';
     });
-    if (gd.layout.updatemenus && gd.layout.updatemenus.length) {   // a csúszka a lejátszás gomb mellől induljon
-      var sx = Math.min(0.35, 115 / width);
-      upd['sliders[0].x'] = sx;
-      upd['sliders[0].len'] = 1 - sx;
-    }
+    (gd.layout.updatemenus || []).forEach(function (m, k) {
+      if (m.type === 'buttons') {                             // a csúszka a lejátszás gomb mellől induljon
+        var sx = Math.min(0.35, 115 / width);
+        upd['sliders[0].x'] = sx;
+        upd['sliders[0].len'] = 1 - sx;
+      } else if (m.type === 'dropdown') {                     // kérdésválasztó: keskenyen a csúszka alatt
+        var extra = n ? 48 : 0, mb = (meta.mb || 90) + extra;
+        upd.height += extra;
+        upd['margin.b'] = mb;
+        var plotH = upd.height - (gd.layout.margin.t || 100) - mb;
+        upd['updatemenus[' + k + '].y'] = n ? -(mb - 40) / plotH : 1;
+        upd['updatemenus[' + k + '].bgcolor'] = d ? 'rgba(24,26,31,0.92)' : 'rgba(255,255,255,0.88)';
+        upd['updatemenus[' + k + '].font.color'] = d ? '#e6e9ed' : '#1d2127';
+        upd['updatemenus[' + k + '].bordercolor'] = d ? '#5a616b' : '#c8ccd2';
+      }
+    });
     gd.style.height = upd.height + 'px';                     // a to_html rögzített div-magassága is igazodjon
+    if (gd.parentElement && gd.parentElement.style.height) gd.parentElement.style.height = upd.height + 'px';
     Plotly.relayout(gd, upd);
+    var ink = d ? '#f2f4f6' : '#1d2127', lines = [], rings = [], stars = [];
+    gd.data.forEach(function (t, i) {
+      if (t.name === 'q-vonal') lines.push(i);
+      if (t.name === 'q-forras') rings.push(i);
+      if (t.name === 'q-csillag') stars.push(i);
+    });
+    if (lines.length) Plotly.restyle(gd, {'line.color': ink}, lines);
+    if (rings.length) Plotly.restyle(gd, {'marker.color': ink}, rings);
+    if (stars.length) Plotly.restyle(gd, {'marker.line.color': ink}, stars);
   }
   var t = null;
   function later() { clearTimeout(t); t = setTimeout(fit, 120); }

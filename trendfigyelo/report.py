@@ -155,6 +155,7 @@ TREND_SCRIPT = r"""
       if (a.name === 'veg') upd['annotations[' + i + '].visible'] = !n;
     });
     gd.style.height = upd.height + 'px';
+    if (gd.parentElement && gd.parentElement.style.height) gd.parentElement.style.height = upd.height + 'px';
     Plotly.relayout(gd, upd);
   }
   var t = null;
@@ -217,6 +218,11 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
 
     if map_fig is not None:
         dim_text = f"{int(meta['emb_dim'])} dimenziós " if meta.get("emb_dim") else ""   # a használt modelltől függ
+        n_q = sum(getattr(t, "name", "") == "q-csillag" for t in map_fig.data)
+        q_text = ("A „Kérdések és válaszok” kérdései is a térképen vannak: a csillag a kérdés helye (a hozzá "
+                  "leghasonlóbb 10 cikk helyének súlyozott átlaga), a karikák a modellnek átadott források"
+                  + ("; a bal felső menüből választható, melyik kérdés látsszon" if n_q > 1 else "") + ".\n  "
+                  if n_q else "")
         from .tmap import MAP_SCRIPT
         map_html = map_fig.to_html(include_plotlyjs=False if fig is not None else "cdn", full_html=False,
                                    auto_play=False, post_script=MAP_SCRIPT,
@@ -229,7 +235,7 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
   közepe felé húzódnak, a foltok pedig kissé széthúzódnak (ez csak a megjelenítést érinti). A szín a téma növekedése:
   piros, ha a részaránya nőtt, kék, ha csökkent. A csúszkával egy hónap cikkei emelhetők ki, a lejátszás végigléptet
   a hónapokon. Egy pontra mutatva látszik a cikk címe, kattintásra megnyílik az arXivon.
-  A tengelyeknek nincs jelentése és mértékegysége: a UMAP a {dim_text}vektorokat úgy vetíti két
+  {q_text}A tengelyeknek nincs jelentése és mértékegysége: a UMAP a {dim_text}vektorokat úgy vetíti két
   dimenzióra, hogy a szomszédságok megmaradjanak. A közelség hasonlóságot jelent; a távoli foltok közti távolság nem mérőszám.</p>
   <div class="chart">{map_html}</div>
 </section>""")

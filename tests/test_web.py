@@ -1,4 +1,5 @@
 """A webes felület, a HTML-jelentés és a közzététel tesztjei (hálózat és Colab nélkül)."""
+import re
 import types
 
 import numpy as np
@@ -294,3 +295,57 @@ def test_app_ask_language_and_uncited_warning(app):
     out = app.ask("Milyen ágensek vannak?", lang="en")
     assert "Answer language: English" in llm.prompts[-1]
     assert "egyetlen átadott forrásra sem hivatkozik" in out and app.rag.log[-1]["lang"] == "en"
+
+
+def test_question_position_follows_most_similar_papers():
+    xy = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 1.0], [-5.0, 3.0]])
+    scores = np.array([0.1, 0.9, 0.89, 0.2])
+    pos = tf.question_position(xy, scores, k=2)
+    assert 9.9 < pos[0] <= 10 and 0 < pos[1] < 1                       # a két leghasonlóbb cikk közé esik
+    assert np.allclose(tf.question_position(xy, scores, k=1), xy[1])
+
+
+def test_topic_map_questions_layers_menu_and_slider(corpus):  # noqa: F811
+    df, emb, q = corpus
+    df = df.copy()
+    df["topic"], _ = tf.find_topics(emb, (df.title + ". " + df.abstract).values, n_topics=4)
+    share, growth = tf.topic_trends(df.month, df.topic)
+    names = {int(t): {"nev": f"Téma {t}", "leiras": ""} for t in growth.index}
+    xy = np.random.default_rng(0).normal(size=(len(df), 2))
+    rag = tf.RAG(df, emb, q, llm=None, model="fake")
+    qs = [tf.map_question(rag, {"question": "agents <b>tool</b> use", "sources": ", ".join(df.id[:3])}),
+          tf.map_question(rag, "speech recognition")]
+    assert len(qs[1]["sources"]) == rag.top_k and qs[0]["scores"].shape == (len(df),)
+    fig = tf.topic_map(xy, df, names, growth, "cs.CL", questions=qs, play_button=True)
+    months = sorted(df.month.unique())
+    names_ = [t.name for t in fig.data]
+    assert names_[:len(months)] == months and names_[len(months):] == ["q-vonal", "q-forras", "q-csillag"] * 2
+    assert [t.visible for t in fig.data[len(months):]] == [True] * 3 + [False] * 3   # az első kérdés látszik
+    star = fig.data[len(months) + 2]
+    assert "<b>" not in star.customdata[0][0] and "★" in fig.layout.title.text      # escape-elt kérdés; jelmagyarázat
+    assert len(fig.data[len(months) + 1].x) == 3                                    # három bekarikázott forrás
+    menus = {m.type: m for m in fig.layout.updatemenus}
+    assert fig.layout.updatemenus[0].type == "buttons"                              # a lejátszás az első (a JS erre épít)
+    assert len(menus["dropdown"].buttons) == 3                                      # 2 kérdés + „egyik sem”
+    assert menus["dropdown"].buttons[1].args[0]["visible"][-3:] == [True] * 3
+    for st in fig.layout.sliders[0].steps:                                          # a csúszka csak a hónap-rétegeket állítja
+        assert list(st.args[1]) == list(range(len(months)))
+    one = tf.topic_map(xy, df, names, growth, "cs.CL", questions=qs[:1])
+    assert not one.layout.updatemenus                                               # egy kérdésnél nincs menü
+
+
+def test_app_question_map_and_report(app):
+    class Cite:
+        models = None
+        def __init__(self): self.models = self
+        def generate_content(self, model, contents, config=None):
+            ids = re.findall(r"^\[(\d{4}\.\d{4,5})\]", contents, re.M)
+            return types.SimpleNamespace(text=f"Válasz [{ids[0]}]." if ids else "{}")
+    app.rag.llm = Cite()
+    app.rag.log.clear()
+    assert app.question_map() is None
+    app.ask("Milyen ágensek vannak?")
+    fig = app.question_map()
+    assert [t.name for t in fig.data].count("q-csillag") == 1
+    html = app.build_html()
+    assert "a csillag a kérdés helye" in html and "menüből választható" not in html
