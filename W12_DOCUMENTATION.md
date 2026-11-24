@@ -73,7 +73,7 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 | Tématérkép | felügyelet nélküli UMAP (`umap-learn`, koszinusz-távolság), a koordináták a Drive-on; a témák összehúzása megjelenítéskor, állítható erősséggel; interaktív Plotly-térkép hónapcsúszkával (lásd 4.7) |
 | Felület | Gradio (nyilvános `gradio.live` link, jelszóval védve: Colab Secrets `UI_PASSWORD`) |
 | Közzététel | a jelentés egyetlen commitban kerül a repó `docs/` mappájába a GitHub REST API-val (Colab Secrets: `GITHUB_TOKEN`); archívum dátum szerint |
-| Tesztek | 35 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
+| Tesztek | 36 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
 
 ### 4.2. A megoldás és az ellenőrzés dokumentumai
 
@@ -229,9 +229,9 @@ Az automatikus tesztek és a böngészőben, a tényleges futtatókörnyezetben 
 
 A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek. A határidő meghosszabbítása után a tématérkép készült el (4.7). A lista Szilvia leadás utáni ellenőrzésének eredményeivel bővült ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)); az általa elsőként javasolt hibákat november 23-án kijavítottuk, a többi javítása még hátravan.
 
-### Javítva (2026. november 23.)
+### Javítva (2026. november 23–24.)
 
-Szilvia ellenőrzésének első köre. Mindegyikhez új offline teszt tartozik, a böngészőben látható javításokat a Colabéval azonos Plotly-verzióval (2.35) asztali és mobilméretben, világos és sötét módban is kipróbáltuk.
+Szilvia ellenőrzésének első köre, valamint egy futás közben előjött hiba (az utolsó sor). Mindegyikhez új offline teszt tartozik, a böngészőben látható javításokat a Colabéval azonos Plotly-verzióval (2.35) asztali és mobilméretben, világos és sötét módban is kipróbáltuk.
 
 | Hol | Hiba | Javítás |
 |---|---|---|
@@ -240,6 +240,7 @@ Szilvia ellenőrzésének első köre. Mindegyikhez új offline teszt tartozik, 
 | `tmap.py` – kattintás a térképen | A cikkazonosítót ellenőrző JavaScript-mintában duplán escape-elt `\d` miatt minden azonosítót elutasított, így a kattintásra nem nyílt meg a cikk (5.11). | Nyers szövegként kerül a jelentésbe; a teszt a jelentésből kiolvasott mintát valódi azonosítókkal (és ha elérhető, Node.js-sel) ki is próbálja. A régi kódon a teszt elbukik. |
 | `tmap.py` – tématérkép a böngészőben | Keskenyre méretezés után üres maradt; sötét módban a szürke dobozokban a szürke feliratok nehezen voltak olvashatók. | Minden méretváltozáskor a teljes elrendezés (a szélesség is) újraszámolódik; a szélekhez közeli nevek nem lógnak ki, a csúszka nem csúszik a lejátszás gombra. Sötét módban sötét feliratdobozok világos szöveggel. |
 | `report.py` – trendgrafikon | A rögzített 270 pixeles jobb margó mobilméretben szinte elfogyasztotta a rajzterületet. | 640 pixel alatt a vonalvégi nevek helyett jelmagyarázat jelenik meg a grafikon alatt, a margó kicsi, a cím rövid; asztali méretben változatlan. |
+| `llm.py` – a Gemini hívása | A futás megállt, amikor a Gemini túlterhelt volt (`503 UNAVAILABLE … high demand`): újrapróbálás csak kvótahibánál (429) volt. | Átmeneti szerverhibánál (500, 502, 503, 504) is újrapróbál, rövid, duplázódó várakozással (5, 10, 20, 40 mp); ha minden próbálkozás elfogy, érthető magyar hibaüzenetet ad. Nem átmeneti hibánál (pl. hibás kérés) azonnal leáll. |
 
 ### Szükséges módosítások
 
@@ -284,4 +285,5 @@ Szilvia ellenőrzésének első köre. Mindegyikhez új offline teszt tartozik, 
 | 2026-11-16 | Leadás. Ezután az oktató meghosszabbította a határidőt. |
 | 2026-11-18 | A megoldás átnézése a látványosság szempontjából: tématérkép, kérdés a térképen, a kiértékelés hőtérképe, a trendgrafikon mobilos elrendezése, összefoglaló mutatók; a tématérkép készül el elsőként. |
 | 2026-11-22 | Tématérkép (UMAP) a jelentésben, a Gradio-felületen és a notebookban. Valódi adaton „mákos felhő” lett, és a hónapcsúszka eltüntette a pontokat (a Colab Plotly 2.x-e); javítás: témacímkékkel felügyelt UMAP, a csúszka animáció helyett átszínezéssel. |
-| 2026-11-23 | A szigetek torlódtak, majd túl élesnek bizonyultak; végleges változat: felügyelet nélküli UMAP és állítható összehúzás. Közzététel a tématérképpel (András, majd Szilvia). Szilvia leadás utáni ellenőrzése: 32 teszt, új hibák (jelszó nélküli indítás, a térkép hivatkozása, mobilgrafikon); dokumentáció frissítve. Este az ellenőrzés első köre kijavítva: kötelező jelszó, hónapszűrés, a térkép hivatkozása, átméretezése és sötét módja, mobilos trendgrafikon (35 teszt). |
+| 2026-11-23 | A szigetek torlódtak, majd túl élesnek bizonyultak; végleges változat: felügyelet nélküli UMAP és állítható összehúzás. Közzététel a tématérképpel (András, majd Szilvia). Szilvia leadás utáni ellenőrzése: 32 teszt, új hibák (jelszó nélküli indítás, a térkép hivatkozása, mobilgrafikon); dokumentáció frissítve. Este az ellenőrzés első köre kijavítva: kötelező jelszó, hónapszűrés, a térkép hivatkozása, átméretezése és sötét módja, mobilos trendgrafikon (35 teszt). Az oktató közölte az új határidőt: 2026. december 5. 00:00. |
+| 2026-11-24 | A Gemini túlterheltsége (503) megállította a 4. szakaszt; az újrapróbálás kiterjesztve az átmeneti szerverhibákra (36 teszt). |

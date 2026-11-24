@@ -184,6 +184,39 @@ def test_generate_retries_on_quota(monkeypatch):
             generate_content=lambda **k: (_ for _ in ()).throw(RuntimeError("404 NOT_FOUND")))), "m", "p")
 
 
+class ServerError(Exception):
+    """A google-genai ServerError-jához hasonló: a HTTP-kód a .code-ban."""
+    def __init__(self, code, msg):
+        super().__init__(f"{code} {msg}")
+        self.code = code
+
+
+def _client(errors):
+    calls = []
+    def gc(model, contents, config=None):
+        calls.append(1)
+        if errors:
+            raise errors.pop(0)
+        return types.SimpleNamespace(text="ok")
+    return types.SimpleNamespace(models=types.SimpleNamespace(generate_content=gc)), calls
+
+
+def test_generate_retries_on_server_overload():
+    waits = []
+    client, calls = _client([ServerError(503, "UNAVAILABLE. This model is currently experiencing high demand."),
+                             ServerError(500, "INTERNAL")])
+    assert tf.generate(client, "m", "p", sleep=waits.append) == "ok" and len(calls) == 3
+    assert waits == [5, 10]                                            # rövid, duplázódó várakozás
+    client, calls = _client([ServerError(503, "UNAVAILABLE")] * 5)     # tartós túlterhelés: érthető hibaüzenet
+    with pytest.raises(RuntimeError, match="túlterhelt.*5 próbálkozás|5 próbálkozás.*túlterhelt") as err:
+        tf.generate(client, "m", "p", sleep=waits.append)
+    assert len(calls) == 5 and isinstance(err.value.__cause__, ServerError)
+    client, calls = _client([ServerError(400, "INVALID_ARGUMENT")])     # nem átmeneti: azonnal továbbmegy
+    with pytest.raises(ServerError):
+        tf.generate(client, "m", "p", sleep=waits.append)
+    assert len(calls) == 1
+
+
 def test_load_questions(tmp_path, capsys):
     p = tmp_path / "kerdesek.csv"
     p.write_text(
