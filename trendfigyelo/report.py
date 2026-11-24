@@ -216,6 +216,7 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
 </section>""")
 
     if map_fig is not None:
+        dim_text = f"{int(meta['emb_dim'])} dimenziós " if meta.get("emb_dim") else ""   # a használt modelltől függ
         from .tmap import MAP_SCRIPT
         map_html = map_fig.to_html(include_plotlyjs=False if fig is not None else "cdn", full_html=False,
                                    auto_play=False, post_script=MAP_SCRIPT,
@@ -228,7 +229,7 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
   közepe felé húzódnak, a foltok pedig kissé széthúzódnak (ez csak a megjelenítést érinti). A szín a téma növekedése:
   piros, ha a részaránya nőtt, kék, ha csökkent. A csúszkával egy hónap cikkei emelhetők ki, a lejátszás végigléptet
   a hónapokon. Egy pontra mutatva látszik a cikk címe, kattintásra megnyílik az arXivon.
-  A tengelyeknek nincs jelentése és mértékegysége: a UMAP a 768 dimenziós vektorokat úgy vetíti két
+  A tengelyeknek nincs jelentése és mértékegysége: a UMAP a {dim_text}vektorokat úgy vetíti két
   dimenzióra, hogy a szomszédságok megmaradjanak. A közelség hasonlóságot jelent; a távoli foltok közti távolság nem mérőszám.</p>
   <div class="chart">{map_html}</div>
 </section>""")

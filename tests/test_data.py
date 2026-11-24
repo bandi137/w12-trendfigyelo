@@ -116,6 +116,16 @@ def test_report_states_monthly_sample():
     assert "legfeljebb" not in tf.build_report({k: v for k, v in meta.items() if k != "per_month"}, table)
 
 
+def test_report_map_text_uses_actual_vector_size():
+    import plotly.graph_objects as go
+    table = pd.DataFrame(columns=["név", "leírás", "kulcsszavak", "cikkek", "növekedés"])
+    meta = dict(category="cs.CL", months="2026-08 – 2026-10", n_papers=9, emb_dim=384)
+    html = tf.build_report(meta, table, map_fig=go.Figure())
+    assert "a 384 dimenziós vektorokat" in html and "768" not in html
+    html = tf.build_report({k: v for k, v in meta.items() if k != "emb_dim"}, table, map_fig=go.Figure())
+    assert "a UMAP a vektorokat" in html
+
+
 def test_report_shows_download_date():
     table = pd.DataFrame(columns=["név", "leírás", "kulcsszavak", "cikkek", "növekedés"])
     html = tf.build_report(dict(category="cs.CL", months="2026-08 – 2026-10", n_papers=9,

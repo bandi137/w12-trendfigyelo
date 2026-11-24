@@ -120,7 +120,7 @@ class TrendApp:
 
     def meta(self):
         return dict(category=self.s["category"], n_papers=len(self.df),
-                    per_month=int(self.df.month.value_counts().max()),
+                    per_month=int(self.df.month.value_counts().max()), emb_dim=int(self.emb.shape[1]),
                     months=f"{self.df.month.min()} – {self.df.month.max()}",
                     downloaded=download_dates(self.data_dir, sorted(self.df.month.unique())), emb_model=self.s["emb_model"],
                     llm_model=self.s["llm_model"], code_version=git_version(self.repo_dir),

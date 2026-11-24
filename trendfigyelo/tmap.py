@@ -1,6 +1,6 @@
 """Tématérkép: a cikkek 2D-s térképe a vektoraik alapján, a témák növekedése szerint színezve.
 
-A 768 dimenziós vektorokat UMAP vetíti síkba (felügyelet nélkül): a hasonló cikkek egymás mellé kerülnek, és a
+A cikkek vektorait (az e5-base modellnél 768 dimenziósak) UMAP vetíti síkba (felügyelet nélkül): a hasonló cikkek egymás mellé kerülnek, és a
 cikkek egyetlen összefüggő felhőt alkotnak, ahogy a valóságban is egymásba folynak a témák. Hogy a témák mégis
 kivehetők legyenek, megjelenítéskor minden cikk a témája közepe felé húzódik (PULL: a távolság ekkora hányadával).
 Így a témák elmosódott foltokként látszanak, a szélük átfedhet, és minden cikk a valódi szomszédai felé esik.
