@@ -62,17 +62,25 @@ def build_naming_prompt(topic_ids, keywords, examples, cat):
 
 
 def parse_names(text, topic_ids, keywords):
-    """A modell JSON-válaszának feldolgozása. Ha egy téma hiányzik vagy hibás a válasz, az első kulcsszó lesz a név."""
+    """A modell JSON-válaszának feldolgozása. Ha a válasz nem szótár, egy téma hiányzik, vagy a név/leírás nem szöveg
+    (pl. szám, lista), az első kulcsszó lesz a név, a leírás üres – kivétel helyett."""
     m = re.search(r"\{.*\}", text or "", re.S)
     try:
         data = json.loads(m.group(0)) if m else {}
     except json.JSONDecodeError:
         data = {}
+    if not isinstance(data, dict):
+        data = {}
+
+    def text_of(v):
+        return v.strip() if isinstance(v, str) else ""
+
     out = {}
     for t in topic_ids:
-        item = data.get(str(t)) or {}
-        out[t] = {"nev": (item.get("nev") or keywords[t].split(", ")[0]).strip(),
-                  "leiras": (item.get("leiras") or "").strip()}
+        item = data.get(str(t))
+        item = item if isinstance(item, dict) else {}
+        out[t] = {"nev": text_of(item.get("nev")) or keywords[t].split(", ")[0].strip(),
+                  "leiras": text_of(item.get("leiras"))}
     return out
 
 

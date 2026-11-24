@@ -14,6 +14,8 @@ from .publish import PublishError, list_archive, pages_url, publish_files
 from .tmap import PULL, map_coords, topic_map
 from .trends import find_topics, name_topics, summarize_trends, topic_trends, trend_table
 
+LANG_CHOICES = {"automatikus": None, "magyar": "hu", "angol": "en"}   # a felület választója → rag.ask(lang=)
+
 AUTHORS = "Sümegi András, Süle Szilvia"
 REPO = "bandi137/w12-trendfigyelo"
 
@@ -46,17 +48,21 @@ class TrendApp:
 
     # --- műveletek (a felülettől függetlenül is hívhatók és tesztelhetők) ---------------------------
 
-    def ask(self, question, k=None, month_from=None):
+    def ask(self, question, k=None, month_from=None, lang=None):
+        """lang: 'hu' / 'en' a válasz nyelve; None vagy 'auto': a kérdésből felismerve."""
         question = (question or "").strip()
         if not question:
             return "Írj be egy kérdést."
-        answer = self.rag.ask(question, k=k or self.s["top_k"], month_from=month_from or None, show=False)
+        answer = self.rag.ask(question, k=k or self.s["top_k"], month_from=month_from or None, show=False, lang=lang)
         entry = self.rag.log[-1]
         hits = self.df.set_index("id").loc[[i for i in entry["sources"].split(", ") if i]]
         linked = re.sub(r"\[(\d{4}\.\d{4,5})\]", lambda m: f"[[{m.group(1)}]]({report.arxiv_url(m.group(1))})", answer)
         sources = "\n".join(f"{n}. [{i}]({report.arxiv_url(i)}) – {r.title} ({r.month})"
                             for n, (i, r) in enumerate(hits.iterrows(), 1))
         warn = f"\n\n> ⚠ A modell nem kapott forrásra is hivatkozott: {', '.join(entry['invalid'])}" if entry["invalid"] else ""
+        if entry.get("uncited"):
+            warn += ("\n\n> ⚠ A válasz egyetlen átadott forrásra sem hivatkozik, ezért az állításai a forrásokkal "
+                     "nem ellenőrizhetők.")
         sources = sources or "_A megadott időszakban nincs cikk._"
         return f"{linked}{warn}\n\n**Források**\n\n{sources}"
 
@@ -114,6 +120,7 @@ class TrendApp:
 
     def meta(self):
         return dict(category=self.s["category"], n_papers=len(self.df),
+                    per_month=int(self.df.month.value_counts().max()),
                     months=f"{self.df.month.min()} – {self.df.month.max()}",
                     downloaded=download_dates(self.data_dir, sorted(self.df.month.unique())), emb_model=self.s["emb_model"],
                     llm_model=self.s["llm_model"], code_version=git_version(self.repo_dir),
@@ -179,12 +186,14 @@ class TrendApp:
                     k = gr.Slider(1, max(10, int(self.s["top_k"])), value=int(self.s["top_k"]), step=1,
                                   label="Hány cikket kapjon a modell")
                     since = gr.Dropdown(["(mind)"] + months, value="(mind)", label="Csak ettől a hónaptól")
+                    lang = gr.Radio(list(LANG_CHOICES), value="automatikus", label="Válasz nyelve")
                 ask_btn = gr.Button("Kérdezek", variant="primary")
                 answer = gr.Markdown()
-                ask_btn.click(safe(lambda qq, kk, mm: self.ask(qq, int(kk), None if mm == "(mind)" else mm)),
-                              [q, k, since], answer)
-                q.submit(safe(lambda qq, kk, mm: self.ask(qq, int(kk), None if mm == "(mind)" else mm)),
-                         [q, k, since], answer)
+
+                def do_ask(qq, kk, mm, ll):
+                    return self.ask(qq, int(kk), None if mm == "(mind)" else mm, LANG_CHOICES.get(ll))
+                ask_btn.click(safe(do_ask), [q, k, since, lang], answer)
+                q.submit(safe(do_ask), [q, k, since, lang], answer)
 
             with gr.Tab("Tématérkép"):
                 gr.Markdown("Minden pont egy cikk; a hasonló cikkek egymás mellé kerülnek, a témák egymásba folynak. "

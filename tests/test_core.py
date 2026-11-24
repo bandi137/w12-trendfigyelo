@@ -156,6 +156,16 @@ def test_parse_names_robust():
     assert out[0]["nev"] == "Ágensek (Agents)" and out[1]["nev"] == "speech"
 
 
+def test_parse_names_wrong_types_fall_back():
+    kw = {0: "agent, tool", 1: "speech, asr"}
+    for bad in ('["nem szótár"]', '"csak szöveg"', '{"0": "szöveg a szótár helyett", "1": 5}',
+                '{"0": {"nev": 42, "leiras": ["lista"]}, "1": {"nev": null}}', '{"0": {"nev": "  "}}'):
+        out = tf.parse_names(bad, [0, 1], kw)                    # kivétel helyett tartalék név
+        assert out[0] == {"nev": "agent", "leiras": ""} and out[1]["nev"] == "speech", bad
+    ok = tf.parse_names('{"0": {"nev": "Ágensek", "leiras": 7}, "1": {"nev": "Beszéd", "leiras": "jó"}}', [0, 1], kw)
+    assert ok[0] == {"nev": "Ágensek", "leiras": ""} and ok[1] == {"nev": "Beszéd", "leiras": "jó"}
+
+
 def test_evaluate(corpus):
     df, emb, q = corpus
     top = tf.retrieve(df, emb, q("speech recognition audio"), k=10).id.tolist()
@@ -257,3 +267,21 @@ def test_answer_language_follows_question():
         assert ("Answer language: English" in p) == (lang == "en")
         assert ("A válasz nyelve: magyar" in p) == (lang == "hu")
         assert "{" not in p.split("KÉRDÉS:")[1]
+
+
+def test_answer_language_can_be_set_by_hand():
+    import pandas as pd
+    hits = pd.DataFrame([dict(id="2501.00001", title="T", month="2025-11", abstract="a", score=0.9)])
+    q = "How does MI research use van der Waals forces?"          # a felismerés itt magyarnak veheti
+    assert "Answer language: English" in tf.build_prompt(q, hits, lang="en")
+    assert "A válasz nyelve: magyar" in tf.build_prompt("What is RAG?", hits, lang="hu")
+    assert tf.resolve_language(q, "auto") == tf.detect_language(q) and tf.resolve_language(q, "en") == "en"
+
+
+def test_uncited_answer_flagged(corpus):
+    df, emb, q = corpus
+    hits = tf.retrieve(df, emb, q("agents"), k=3)
+    assert tf.check_citations("Nincs hivatkozás a válaszban.", hits)["uncited"]
+    assert not tf.check_citations(f"Lásd [{hits.id.iloc[0]}].", hits)["uncited"]
+    assert tf.check_citations("[2601.99999]", hits)["uncited"]          # csak kitalált azonosító: az sem forrás
+    assert not tf.check_citations("x", hits.iloc[:0])["uncited"]        # nincs forrás: nincs mit számon kérni

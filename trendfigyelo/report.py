@@ -198,6 +198,9 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
 
     sections = []
     top = table.head(n_show)
+    sample_note = (f" Havonta legfeljebb {int(meta['per_month'])} cikk szerepel: az arXiv-letöltés a hónap utolsó "
+                   "napjain beküldött cikkeket veszi át, ezért a trendek erre a mintára vonatkoznak."
+                   if meta.get("per_month") else "")
     chart = fig.to_html(include_plotlyjs="cdn", full_html=False, post_script=TREND_SCRIPT,
                         config={"displayModeBar": False, "responsive": True}) \
         if fig is not None else ""
@@ -205,7 +208,7 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
 <section id="trendek">
   <h2>Leggyorsabban növő témák</h2>
   <p class="lead">A témákat a cikkek vektorainak csoportosítása adja; a növekedés az utolsó 3 hónap részaránya osztva
-  az első 3 hónapéval. A neveket és a leírásokat nyelvi modell adta a kulcsszavak és a cikkcímek alapján.</p>
+  az első 3 hónapéval. A neveket és a leírásokat nyelvi modell adta a kulcsszavak és a cikkcímek alapján.{sample_note}</p>
   <div class="chart">{chart}</div>
   {_table(top, ["név", "leírás", "kulcsszavak", "cikkek", "növekedés"],
           formats={"név": lambda v: f"<strong>{e(str(v))}</strong>", "növekedés": _growth_cell(float(top["növekedés"].max() or 1))},
@@ -238,6 +241,8 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
             src = "".join(f'<li><a href="{arxiv_url(i)}">{e(i)}</a> {e(titles.get(i, ""))}</li>' for i in ids)
             warn = f'<p class="warn">⚠ A modell nem kapott forrásra is hivatkozott: {e(", ".join(item["invalid"]))}</p>' \
                 if item.get("invalid") else ""
+            if str(item.get("uncited", "")).lower() == "true":
+                warn += '<p class="warn">⚠ A válasz egyetlen átadott forrásra sem hivatkozik.</p>'
             cards.append(f"""<article class="qa"><h3>{e(item["question"])}</h3><div class="prose">{md_lite(item["answer"])}</div>
 {warn}<details><summary>Források ({len(ids)})</summary><ol class="sources">{src}</ol></details></article>""")
         sections.append(f'<section id="kerdesek"><h2>Kérdések és válaszok</h2>{"".join(cards)}</section>')

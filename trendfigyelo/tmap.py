@@ -32,9 +32,9 @@ UMAP_PARAMS = dict(n_neighbors=30, min_dist=0.25, metric="cosine")
 
 
 def _fingerprint(emb, ids, method):
-    h = hashlib.sha1(np.ascontiguousarray(emb[:, :8], dtype=np.float32).tobytes())
+    h = hashlib.sha1(np.ascontiguousarray(emb, dtype=np.float32).tobytes())     # a teljes vektor (nem csak az eleje)
     h.update("\n".join(map(str, ids)).encode())
-    return dict(method=method, params=UMAP_PARAMS if method == "umap" else {}, n=int(len(emb)), sha1=h.hexdigest())
+    return dict(method=method, params=UMAP_PARAMS if method == "umap" else {}, n=int(len(emb)), sha1_full=h.hexdigest())
 
 
 def _project(emb, method, seed):

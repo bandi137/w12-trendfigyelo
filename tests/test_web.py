@@ -271,3 +271,26 @@ def test_trend_chart_switches_to_legend_on_narrow_screens(app):
     assert all(t.showlegend for t in fig.data if t.mode == "lines")         # keskenyen: jelmagyarázat (a szkript kapcsolja)
     html = app.build_html()
     assert "width < 640" in html and "'veg'" in html and "showlegend: n" in html
+
+
+def test_map_coords_notice_change_beyond_first_components(corpus, tmp_path):  # noqa: F811
+    df, emb, _ = corpus
+    xy = tf.map_coords(emb, df.id, str(tmp_path), method="tsne")
+    changed = np.array(emb, dtype=np.float32).copy()
+    changed[0, -1] += 0.5                                      # az utolsó komponens változik (régen nem számított)
+    np.save(tmp_path / "terkep.npy", np.zeros_like(xy))
+    assert tf.map_coords(changed, df.id, str(tmp_path), method="tsne").any()   # újraszámolta, nem a nullákat töltötte be
+
+
+def test_app_ask_language_and_uncited_warning(app):
+    class Echo:
+        models = None
+        def __init__(self): self.models = self; self.prompts = []
+        def generate_content(self, model, contents, config=None):
+            self.prompts.append(contents)
+            return types.SimpleNamespace(text="Általános válasz hivatkozás nélkül.")
+    llm = Echo()
+    app.rag.llm = llm
+    out = app.ask("Milyen ágensek vannak?", lang="en")
+    assert "Answer language: English" in llm.prompts[-1]
+    assert "egyetlen átadott forrásra sem hivatkozik" in out and app.rag.log[-1]["lang"] == "en"

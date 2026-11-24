@@ -70,24 +70,50 @@ def test_legacy_papers_csv_is_split_not_redownloaded(tmp_path):
 
 
 class FakeEmbedder:
+    """Determinisztikus „vektor” a szövegből; számolja, hány szöveget vektorizált."""
     def __init__(self, name="e5"):
-        self.model_name, self.n = name, 0
+        self.model_name, self.n, self.texts = name, 0, 0
 
     def passages(self, texts):
         self.n += 1
-        return np.ones((len(texts), 4))
+        self.texts += len(texts)
+        return np.array([[len(t), sum(map(ord, t)) % 97, 1.0, 0.0] for t in texts])
 
 
-def test_embeddings_recomputed_fully_on_any_change(tmp_path):
+def test_embeddings_only_new_or_changed_articles_recomputed(tmp_path):
     df = FakeDownloader()("cs.CL", "", "", "2026-10", 5)
+    e = FakeEmbedder()
+    first = tf.load_or_embed(df, e, str(tmp_path))
+    assert e.texts == 5
+    tf.load_or_embed(df, e, str(tmp_path))
+    assert e.n == 1                                            # semmi sem változott: betölti
+    changed = df.copy()
+    changed.loc[changed.index[2], "abstract"] = "Teljesen más absztrakt, ugyanazzal az azonosítóval."
+    out = tf.load_or_embed(changed, e, str(tmp_path))
+    assert e.texts == 6                                        # csak a módosult absztraktú cikk számolódik újra
+    assert not np.allclose(out[2], first[2]) and np.allclose(np.delete(out, 2, 0), np.delete(first, 2, 0))
+    sub = tf.load_or_embed(changed.iloc[1:], e, str(tmp_path))
+    assert e.texts == 6 and np.allclose(sub, out[1:])          # kevesebb cikk (pl. kilépő hónap): nincs vektorizálás
+    e2 = FakeEmbedder("masik-modell")
+    assert len(tf.load_or_embed(df.iloc[1:], e2, str(tmp_path))) == 4 and e2.texts == 4   # más modell: mind újra
+
+
+def test_embeddings_old_format_cache_recomputed_once(tmp_path):
+    import json
+    df = FakeDownloader()("cs.CL", "", "", "2026-10", 3)
+    np.save(tmp_path / "embeddings.npy", np.zeros((3, 4)))     # régi formátum: csak azonosító-ellenőrzőösszeg
+    (tmp_path / "embeddings.json").write_text(json.dumps(dict(model="e5", n=3, ids_sha1="x")))
     e = FakeEmbedder()
     tf.load_or_embed(df, e, str(tmp_path))
     tf.load_or_embed(df, e, str(tmp_path))
-    assert e.n == 1                                            # semmi sem változott: betölti
-    tf.load_or_embed(df.iloc[1:], e, str(tmp_path))
-    assert e.n == 2                                            # változott a cikklista: mind újra
-    e2 = FakeEmbedder("masik-modell")
-    assert len(tf.load_or_embed(df.iloc[1:], e2, str(tmp_path))) == 4 and e2.n == 1
+    assert e.texts == 3 and e.n == 1
+
+
+def test_report_states_monthly_sample():
+    table = pd.DataFrame(columns=["név", "leírás", "kulcsszavak", "cikkek", "növekedés"])
+    meta = dict(category="cs.CL", months="2026-08 – 2026-10", n_papers=9, per_month=400)
+    assert "legfeljebb 400 cikk" in tf.build_report(meta, table)
+    assert "legfeljebb" not in tf.build_report({k: v for k, v in meta.items() if k != "per_month"}, table)
 
 
 def test_report_shows_download_date():

@@ -64,7 +64,7 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 |---|---|
 | Futtatókörnyezet | Google Colab (T4 GPU); a notebook első cellája a GitHubról frissíti a kódot |
 | Adat | arXiv `cs.CL`, 2025-11 – 2026-10, havonta a 400 legutoljára beküldött cikk (4800 absztrakt); hónaponként tárolva a Drive-on, `FRISSITES` kapcsolóval (auto / mindig / soha) |
-| Vektorizálás | `intfloat/multilingual-e5-base` (768 dimenzió), cím + absztrakt; a vektorok a Drive-on, és ha a cikklista vagy a modell változik, mind újraszámolódnak |
+| Vektorizálás | `intfloat/multilingual-e5-base` (768 dimenzió), cím + absztrakt; a vektorok a Drive-on, cikkenkénti ellenőrzőösszeggel: csak az új vagy módosult cikkek vektorizálódnak újra, más modellnél mind |
 | Nyelvi modell | `gemini-3.5-flash-lite` a Gemini API-n (Colab Secrets: `GEMINI_API_KEY`), újrapróbálás kvótahibánál |
 | Visszakeresés | koszinusz-hasonlóság, a kérdéshez legközelebbi 5 cikk; opcionális hónapszűrés |
 | Válasz | a kérdés nyelvén (a kód állapítja meg: magyar / angol), minden állítás után a forrás azonosítója; a hivatkozás-ellenőrző jelzi, ha a modell meg nem kapott azonosítóra hivatkozik |
@@ -73,7 +73,7 @@ RAG-ág: visszakeresés (top 5)        Trendág: KMeans 25 téma + c-TF-IDF kulc
 | Tématérkép | felügyelet nélküli UMAP (`umap-learn`, koszinusz-távolság), a koordináták a Drive-on; a témák összehúzása megjelenítéskor, állítható erősséggel; interaktív Plotly-térkép hónapcsúszkával (lásd 4.7) |
 | Felület | Gradio (nyilvános `gradio.live` link, jelszóval védve: Colab Secrets `UI_PASSWORD`) |
 | Közzététel | a jelentés egyetlen commitban kerül a repó `docs/` mappájába a GitHub REST API-val (Colab Secrets: `GITHUB_TOKEN`); archívum dátum szerint |
-| Tesztek | 36 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
+| Tesztek | 43 offline teszt (`tests/`), kitalált adaton, szimulált nyelvi modellel és letöltővel; hálózat nélkül futnak |
 
 ### 4.2. A megoldás és az ellenőrzés dokumentumai
 
@@ -227,11 +227,11 @@ Az automatikus tesztek és a böngészőben, a tényleges futtatókörnyezetben 
 
 ## 6. Ismert hibák, szükséges módosítások és továbbfejlesztési lehetőségek
 
-A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek. A határidő meghosszabbítása után a tématérkép készült el (4.7). A lista Szilvia leadás utáni ellenőrzésének eredményeivel bővült ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)); az általa elsőként javasolt hibákat november 23-án kijavítottuk, a többi javítása még hátravan.
+A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek. A határidő meghosszabbítása után a tématérkép készült el (4.7). A lista Szilvia leadás utáni ellenőrzésének eredményeivel bővült ([ellenőrzési összefoglaló](eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)); az általa javasolt első két kör hibáit november 23–24-én kijavítottuk, a többi javítása még hátravan.
 
 ### Javítva (2026. november 23–24.)
 
-Szilvia ellenőrzésének első köre, valamint egy futás közben előjött hiba (az utolsó sor). Mindegyikhez új offline teszt tartozik, a böngészőben látható javításokat a Colabéval azonos Plotly-verzióval (2.35) asztali és mobilméretben, világos és sötét módban is kipróbáltuk.
+Szilvia ellenőrzésének első és második köre (a gyorsítótárak és a modellválaszok feldolgozása), valamint egy futás közben előjött hiba (a Gemini túlterheltsége). Mindegyikhez új offline teszt tartozik, a böngészőben látható javításokat a Colabéval azonos Plotly-verzióval (2.35) asztali és mobilméretben, világos és sötét módban is kipróbáltuk.
 
 | Hol | Hiba | Javítás |
 |---|---|---|
@@ -240,6 +240,12 @@ Szilvia ellenőrzésének első köre, valamint egy futás közben előjött hib
 | `tmap.py` – kattintás a térképen | A cikkazonosítót ellenőrző JavaScript-mintában duplán escape-elt `\d` miatt minden azonosítót elutasított, így a kattintásra nem nyílt meg a cikk (5.11). | Nyers szövegként kerül a jelentésbe; a teszt a jelentésből kiolvasott mintát valódi azonosítókkal (és ha elérhető, Node.js-sel) ki is próbálja. A régi kódon a teszt elbukik. |
 | `tmap.py` – tématérkép a böngészőben | Keskenyre méretezés után üres maradt; sötét módban a szürke dobozokban a szürke feliratok nehezen voltak olvashatók. | Minden méretváltozáskor a teljes elrendezés (a szélesség is) újraszámolódik; a szélekhez közeli nevek nem lógnak ki, a csúszka nem csúszik a lejátszás gombra. Sötét módban sötét feliratdobozok világos szöveggel. |
 | `report.py` – trendgrafikon | A rögzített 270 pixeles jobb margó mobilméretben szinte elfogyasztotta a rajzterületet. | 640 pixel alatt a vonalvégi nevek helyett jelmagyarázat jelenik meg a grafikon alatt, a margó kicsi, a cím rövid; asztali méretben változatlan. |
+| `embed.py` – vektor-gyorsítótár | Változatlan azonosító mellett módosult címhez vagy absztrakthoz a régi vektort használta ([errors.md](eval/errors.md)). | Cikkenként ellenőrzőösszeg az azonosítóból, a címből és az absztraktból. Csak az új vagy tartalmában módosult cikkek vektorizálódnak újra, a többi a tárolt fájlból jön (egy új hónapnál így 400 cikk, nem 4800). A régi formátumú tárolás egyszer teljesen újraszámolódik. |
+| `tmap.py` – térkép-gyorsítótár | Az ellenőrzőösszeg csak a vektorok első nyolc komponensét nézte. | A teljes vektor számít; a régi tárolás egyszer újraszámolódik. |
+| `trends.py` – témanevek | Szabályos, de hibás típusú JSON-nál (lista a szótár helyett, szám a név helyett) kivétel keletkezett ([errors.md](eval/errors.md)). | A szótár- és szövegtípusokat is ellenőrzi; hibás értéknél az első kulcsszó lesz a név, a leírás üres. |
+| `rag.py`, `app.py` – válasznyelv | Angol kérdésben az „MI”, a „van der Waals” vagy a „résumé” magyar választ állíthatott be ([errors.md](eval/errors.md)). | A felületen választható: automatikus, magyar vagy angol (a notebookban `lang="hu"` / `"en"`); az automatikus felismerés maradt az alapértelmezés. |
+| `rag.py`, `app.py`, `report.py` – hivatkozás-ellenőrzés | Csak azt vizsgálta, hogy az idézett azonosító az átadott források között volt-e. | Jelzi azt is, ha a válasz egyetlen átadott forrásra sem hivatkozik (a felületen, a notebookban és a jelentésben). Azt továbbra sem vizsgálja, hogy a forrás alátámasztja-e az állítást (lásd lent). |
+| `report.py` – mintavétel | A jelentés nem jelezte, hogy havonta legfeljebb 400 cikk, a hónap végén beküldöttek szerepelnek. | A trendek szakasz bevezetője közli a havi mintát és azt, hogy a trendek erre vonatkoznak. |
 | `llm.py` – a Gemini hívása | A futás megállt, amikor a Gemini túlterhelt volt (`503 UNAVAILABLE … high demand`): újrapróbálás csak kvótahibánál (429) volt. | Átmeneti szerverhibánál (500, 502, 503, 504) is újrapróbál, rövid, duplázódó várakozással (5, 10, 20, 40 mp); ha minden próbálkozás elfogy, érthető magyar hibaüzenetet ad. Nem átmeneti hibánál (pl. hibás kérés) azonnal leáll. |
 
 ### Szükséges módosítások
@@ -249,11 +255,7 @@ Szilvia ellenőrzésének első köre, valamint egy futás közben előjött hib
 | `report.py`, notebook 5. szakasz | A növekedési mutató leírása a jelentésben és a grafikonon írja ki a simítást (4.5), és „a vizsgált havi mintában” növekvő témákról beszéljen. | A jelenlegi szöveg egyszerű hányadost ígér. |
 | `prompts.py` – `SUMMARY_PROMPT` | Csak a mért részarány-változásokról írjon; ok-okozati, minőségi („olcsóbb, okosabb”) és a kategória egészére vonatkozó állításokat ne tegyen; a simított mutató korlátját említse. | 5.8. |
 | `report.py`, notebook | A jelentés fejlécébe és egy `futas.json`-ba kerüljön a futás rekordja: kódverzió, modellek, beállítások, a `papers.csv` és az `embeddings.npy` SHA-256 ellenőrzőösszege. | Az eredmények utólag is azonosíthatók legyenek; a mostani futáshoz ezt kézzel rekonstruáltuk (4.4), ellenőrzőösszeg nélkül. |
-| `rag.py` – nyelvfelismerés | Kézzel választható válasznyelv a felületen; az automatikus felismerés maradjon alapértelmezés. | Angol kérdésben az „MI”, a „van der Waals” vagy a „résumé” is magyar választ állít be ([errors.md](eval/errors.md)). |
-| `trends.py` – témanevek | A JSON értékeinek típusát is ellenőrizze, különben a tartalék elnevezést használja. | Érvényes, de rossz típusú JSON-nál kivétel ([errors.md](eval/errors.md)). |
-| `embed.py` – vektor-ujjlenyomat | Az ellenőrzőösszeg a címet és az absztraktot is tartalmazza. | Változatlan azonosító mellett módosult absztrakthoz a régi vektort használja ([errors.md](eval/errors.md)). |
-| `tmap.py` – térkép-ujjlenyomat | Az ellenőrzőösszeg a teljes vektort vegye figyelembe. | Jelenleg csak a vektorok első nyolc komponensét nézi. |
-| `rag.py` – hivatkozás-ellenőrzés | A hivatkozás nélküli válasz és a forrással alá nem támasztott állítás jelzése. | Most csak azt vizsgálja, hogy az idézett azonosító az átadott források között volt-e. |
+| `rag.py` – hivatkozás-ellenőrzés | A forrással alá nem támasztott állítás jelzése (pl. egy második, ellenőrző modellhívással). | A hivatkozás nélküli választ már jelzi, de azt nem, hogy a hivatkozott forrás valóban alátámasztja-e az állítást. |
 | `app.py` – közzététel | A közlendő kérdés–válaszok kiválasztása, előnézet a feltöltés előtt, egyedi futásazonosító az archívumban. | Az egész napló bekerülhet a jelentésbe, és az aznapi új közzététel felülírja az azonos dátumú archív oldalt (november 23-án három közzététel történt, az archívumban csak az utolsó maradt meg). |
 
 ### Továbbfejlesztési lehetőségek
@@ -286,4 +288,4 @@ Szilvia ellenőrzésének első köre, valamint egy futás közben előjött hib
 | 2026-11-18 | A megoldás átnézése a látványosság szempontjából: tématérkép, kérdés a térképen, a kiértékelés hőtérképe, a trendgrafikon mobilos elrendezése, összefoglaló mutatók; a tématérkép készül el elsőként. |
 | 2026-11-22 | Tématérkép (UMAP) a jelentésben, a Gradio-felületen és a notebookban. Valódi adaton „mákos felhő” lett, és a hónapcsúszka eltüntette a pontokat (a Colab Plotly 2.x-e); javítás: témacímkékkel felügyelt UMAP, a csúszka animáció helyett átszínezéssel. |
 | 2026-11-23 | A szigetek torlódtak, majd túl élesnek bizonyultak; végleges változat: felügyelet nélküli UMAP és állítható összehúzás. Közzététel a tématérképpel (András, majd Szilvia). Szilvia leadás utáni ellenőrzése: 32 teszt, új hibák (jelszó nélküli indítás, a térkép hivatkozása, mobilgrafikon); dokumentáció frissítve. Este az ellenőrzés első köre kijavítva: kötelező jelszó, hónapszűrés, a térkép hivatkozása, átméretezése és sötét módja, mobilos trendgrafikon (35 teszt). Az oktató közölte az új határidőt: 2026. december 5. 00:00. |
-| 2026-11-24 | A Gemini túlterheltsége (503) megállította a 4. szakaszt; az újrapróbálás kiterjesztve az átmeneti szerverhibákra (36 teszt). |
+| 2026-11-24 | A Gemini túlterheltsége (503) megállította a 4. szakaszt; az újrapróbálás kiterjesztve az átmeneti szerverhibákra (36 teszt). Szilvia ellenőrzésének második köre: cikkenkénti vektor-gyorsítótár, a térkép teljes ellenőrzőösszege, a témanevek típusellenőrzése, választható válasznyelv, a hivatkozás nélküli válasz jelzése, a havi minta jelzése a jelentésben (43 teszt). |

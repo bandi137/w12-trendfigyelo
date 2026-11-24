@@ -36,15 +36,23 @@ def detect_language(question):
     return "hu" if words & HU_WORDS else "en"
 
 
-def build_prompt(question, hits, template=RAG_PROMPT):
+def resolve_language(question, lang=None):
+    """A válasz nyelve: 'hu' vagy 'en', ha kézzel meg van adva; különben (None, 'auto') a kérdésből felismerve.
+    A felismerés tévedhet (pl. „MI”, „van der Waals” angol kérdésben), ezért a felületen kézzel is választható."""
+    return lang if lang in ("hu", "en") else detect_language(question)
+
+
+def build_prompt(question, hits, template=RAG_PROMPT, lang=None):
     context = "\n\n".join(f"[{r.id}] {r.title} ({r.month})\n{r.abstract}" for r in hits.itertuples())
-    return template.format(context=context, question=question, language_rule=LANGUAGE_RULES[detect_language(question)])
+    return template.format(context=context, question=question, language_rule=LANGUAGE_RULES[resolve_language(question, lang)])
 
 
 def check_citations(answer, hits):
-    """Csak olyan azonosítóra hivatkozott-e, amit tényleg megkapott?"""
+    """Hivatkozás-ellenőrzés: csak olyan azonosítóra hivatkozott-e, amit tényleg megkapott (invalid), és hivatkozott-e
+    egyáltalán valamelyik átadott forrásra (uncited). Azt nem vizsgálja, hogy az állításokat a forrás alátámasztja-e."""
     cited = set(re.findall(r"\d{4}\.\d{4,5}", answer))
-    return {"cited": sorted(cited), "invalid": sorted(cited - set(hits.id))}
+    invalid = sorted(cited - set(hits.id))
+    return {"cited": sorted(cited), "invalid": invalid, "uncited": bool(len(hits)) and not (cited & set(hits.id))}
 
 
 class RAG:
@@ -56,22 +64,26 @@ class RAG:
     def retrieve(self, question, k=None, month_from=None):
         return retrieve(self.df, self.emb, self.embed_query(question), k or self.top_k, month_from)
 
-    def ask(self, question, k=None, month_from=None, show=True):
+    def ask(self, question, k=None, month_from=None, show=True, lang=None):
+        """lang: 'hu' / 'en' a válasz nyelve; None vagy 'auto': a kérdésből felismerve."""
         hits = self.retrieve(question, k, month_from)
+        language = resolve_language(question, lang)
         if hits.empty:                                   # üres időszak: nincs mit átadni a modellnek
             answer = (f"A megadott időszakban ({month_from} után) nincs cikk az adatbázisban, ezért nem tudok "
-                      "forrással alátámasztott választ adni." if detect_language(question) == "hu" else
+                      "forrással alátámasztott választ adni." if language == "hu" else
                       f"There are no papers in the database from {month_from} onward, so I cannot give a sourced answer.")
         else:
-            answer = generate(self.llm, self.model, build_prompt(question, hits))
+            answer = generate(self.llm, self.model, build_prompt(question, hits, lang=lang))
         cit = check_citations(answer, hits)
-        self.log.append({"question": question, "answer": answer, "sources": ", ".join(hits.id), **cit})
+        self.log.append({"question": question, "answer": answer, "sources": ", ".join(hits.id), "lang": language, **cit})
         if show:
             print(answer, "\n\nForrások:")
             for r in hits.itertuples():
                 print(f"  [{r.id}] {r.score:.3f}  {r.title}")
             if cit["invalid"]:
                 print("⚠ Nem kapott forrásra hivatkozott:", cit["invalid"])
+            if cit["uncited"]:
+                print("⚠ A válasz egyetlen átadott forrásra sem hivatkozik.")
         return answer
 
     def save_log(self, path):
