@@ -260,6 +260,12 @@ def _eval_section(eval_df, eval_summary, scores, plotly_loaded):
     return "\n".join(parts)
 
 
+def archive_title(label):
+    """Az archív fájlnév olvasható alakja: '2026-11-25_1712' -> '2026-11-25 17:12' (a régi, csak dátumos marad)."""
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})(-\d+)?", str(label))
+    return f"{m.group(1)} {m.group(2)}:{m.group(3)}" + (f" ({m.group(4)[1:]}.)" if m.group(4) else "") if m else str(label)
+
+
 def _claims_html(claims, error=""):
     """A hivatkozások tartalmi ellenőrzése a kérdés–válasz kártyán: összegzés, és lenyitva állításonként az ítélet."""
     e = html.escape
@@ -359,7 +365,8 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
         sections.append(_eval_section(None, None, scores, plotly_loaded))
 
     if archive:
-        links = "".join(f'<li><a href="{archive_prefix}{e(a)}.html">{e(a)}</a></li>' for a in sorted(archive, reverse=True))
+        links = "".join(f'<li><a href="{archive_prefix}{e(a)}.html">{e(archive_title(a))}</a></li>'
+                        for a in sorted(archive, reverse=True))
         sections.append(f'<section id="archiv"><h2>Korábbi jelentések</h2><ul class="archive">{links}</ul></section>')
 
     nav = "".join(f'<a href="#{i}">{t}</a>' for i, t in [("trendek", "Trendek"), ("terkep", "Tématérkép"), ("osszefoglalo", "Összefoglaló"),

@@ -5,11 +5,13 @@ A notebook 7. szakasza indítja:  app = tf.TrendApp(...); app.launch()
 import os
 import re
 import subprocess
+import textwrap
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from . import report
 from .evaluate import evaluate, load_questions
-from .verify import claims_markdown
+from .verify import as_list, claims_markdown, summary_counts
 from .evalviz import eval_figure, eval_view, load_scores, overview_text, scores_figure
 from .data import download_dates, per_month_limit, sampling_of
 from .publish import PublishError, list_archive, pages_url, publish_files
@@ -61,6 +63,23 @@ nem elegendőek a válaszhoz). Ez az ábra a korábban pontozott válaszokat mut
 nem változtat rajta. Egy sávra mutatva látszik az indoklás."""
 
 
+TIMEZONE = ZoneInfo("Europe/Budapest")   # a Colab órája UTC; a jelentés és az archívum időpontja helyi idő
+
+
+def now_local():
+    return datetime.now(TIMEZONE)
+
+
+def archive_label(when, existing=()):
+    """Az archív jelentés egyedi neve: ÉÉÉÉ-HH-NN_ÓÓPP (helyi idő), így az aznapi újabb közzététel nem írja felül
+    a korábbit; ugyanabban a percben ismételt közzétételnél -2, -3… végződést kap."""
+    label = when.strftime("%Y-%m-%d_%H%M")
+    n, out = 2, label
+    while out in existing:
+        out, n = f"{label}-{n}", n + 1
+    return out
+
+
 class TrendApp:
     def __init__(self, df, emb, embedder, llm, rag, data_dir, settings, repo_dir="/content/repo", repo=REPO,
                  token_fn=lambda: colab_secret("GITHUB_TOKEN")):
@@ -70,6 +89,7 @@ class TrendApp:
         self.trends, self.summary, self.eval_df, self.eval_summary = None, "", None, None
         self.coords = None               # a tématérkép koordinátái (a Drive-on is tárolva)
         self.ui_log = []                 # a felületen (Kérdezz fül) feltett kérdések naplóbejegyzései
+        self.qa_choice = {}              # naplóbeli sorszám -> közzétegyük-e (új kérdés: igen)
 
     # --- műveletek (a felülettől függetlenül is hívhatók és tesztelhetők) ---------------------------
 
@@ -135,8 +155,38 @@ class TrendApp:
 
     def asked_questions(self, ui_only=False):
         """Forrással megválaszolt kérdések a térképhez (tmap.map_question). ui_only: csak a felületen feltettek
-        (a Tématérkép fül); különben a notebookban feltettek is (a jelentés, ahol a kérdés–válaszok is szerepelnek)."""
-        return [map_question(self.rag, e) for e in (self.ui_log if ui_only else self.rag.log) if e.get("sources")]
+        (a Tématérkép fül); különben a közzétételre kiválasztottak (a jelentés, ahol a kérdés–válaszok is szerepelnek)."""
+        return [map_question(self.rag, e) for e in (self.ui_log if ui_only else self.selected_log()) if e.get("sources")]
+
+    # --- a közzéteendő kérdés–válaszok kiválasztása -------------------------------------------------
+
+    def qa_choices(self):
+        """A Közzététel fül listája: [(felirat, sorszám szövegként)], és a kijelöltek sorszámai. A felirat jelzi,
+        honnan jött a kérdés (notebook / felület), és a hivatkozás-ellenőrzés eredményét, hogy a gyenge válasz
+        kiszűrhető legyen. Az eddig nem látott kérdések alapból kijelöltek."""
+        ui = {id(e) for e in self.ui_log}
+        out = []
+        for i, e in enumerate(self.rag.log):
+            self.qa_choice.setdefault(i, True)
+            cnt = summary_counts(as_list(e.get("claims")))
+            flags = (["❗ nem kapott forrásra hivatkozik"] if e.get("invalid") else []) + \
+                    (["❗ nincs hivatkozás"] if e.get("uncited") else []) + \
+                    ([f"✅{cnt['igen']} ⚠️{cnt['részben']} ❌{cnt['nem']}"] if sum(cnt.values()) else [])
+            origin = "felület" if id(e) in ui else "notebook"
+            label = f"{i + 1}. {textwrap.shorten(e['question'], 90, placeholder='…')} ({origin}" + \
+                (f"; {'; '.join(flags)})" if flags else ")")
+            out.append((label, str(i)))
+        return out, [str(i) for i in range(len(self.rag.log)) if self.qa_choice.get(i, True)]
+
+    def select_qa(self, values):
+        """A kijelölés rögzítése (a Közzététel fül jelölőnégyzetei): a sorszámok szövegként."""
+        keep = {int(v) for v in (values or [])}
+        for i in range(len(self.rag.log)):
+            self.qa_choice[i] = i in keep
+
+    def selected_log(self):
+        """A közzétételre kijelölt kérdés–válaszok (alapból mind)."""
+        return [e for i, e in enumerate(self.rag.log) if self.qa_choice.get(i, True)]
 
     def summarize(self):
         if self.trends is None:
@@ -169,7 +219,7 @@ class TrendApp:
                     months=f"{self.df.month.min()} – {self.df.month.max()}",
                     downloaded=download_dates(self.data_dir, sorted(self.df.month.unique())), emb_model=self.s["emb_model"],
                     llm_model=self.s["llm_model"], code_version=git_version(self.repo_dir),
-                    generated=datetime.now().strftime("%Y-%m-%d %H:%M"), authors=AUTHORS,
+                    generated=now_local().strftime("%Y-%m-%d %H:%M"), authors=AUTHORS,
                     repo_url=f"https://github.com/{self.repo}")
 
     def build_html(self, archive=None, archive_prefix="archiv/"):
@@ -177,7 +227,7 @@ class TrendApp:
             self.compute_trends()
         if not self.summary:
             self.summarize()
-        return report.build_report(self.meta(), self.trends["table"], self.figure(), self.summary, self.rag.log,
+        return report.build_report(self.meta(), self.trends["table"], self.figure(), self.summary, self.selected_log(),
                                    self.df, self.eval_df, self.eval_summary, archive, self.s["n_show"], archive_prefix,
                                    map_fig=self.map_figure(play_button=True, questions=self.asked_questions() or None),
                                    scores=self.scores())
@@ -194,15 +244,16 @@ class TrendApp:
         if not token:
             raise PublishError("Nincs GITHUB_TOKEN a Colab Secrets fülön (vagy nincs hozzá notebook-hozzáférés). "
                                "Útmutató: docs/KOZZETETEL.md a repóban.")
-        label = datetime.now().strftime("%Y-%m-%d")
-        archive = sorted(set(list_archive(token, self.repo)) | {label})
+        existing = set(list_archive(token, self.repo))
+        label = archive_label(now_local(), existing)
+        archive = sorted(existing | {label})
         files = {"docs/index.html": self.build_html(archive, "archiv/"),
                  f"docs/archiv/{label}.html": self.build_html(archive, ""),
                  "docs/.nojekyll": ""}
         res = publish_files(files, token, self.repo, message=f"Jelentés közzététele: {label} ({self.s['category']})")
         with open(os.path.join(self.data_dir, f"jelentes_{label}.html"), "w", encoding="utf-8") as f:
             f.write(files["docs/index.html"])
-        return res
+        return {**res, "label": label}
 
     # --- felület -----------------------------------------------------------------------------------
 
@@ -349,24 +400,47 @@ class TrendApp:
                     gr.Markdown(SCORES_HELP)
                     gr.Plot(value=scores_figure(scores, title=False), show_label=False)
 
-            with gr.Tab("Közzététel"):
-                gr.Markdown(f"A jelentés (trendek, összefoglaló, az itt feltett kérdések és válaszok, kiértékelés) "
-                            f"statikus weboldalként kerül ide: **{pages_url(self.repo)}**. Ha még nincsenek "
+            with gr.Tab("Közzététel") as pub_tab:
+                gr.Markdown(f"A jelentés (trendek, tématérkép, összefoglaló, a kiválasztott kérdések és válaszok, "
+                            f"kiértékelés) statikus weboldalként kerül ide: **{pages_url(self.repo)}**. Ha még nincsenek "
                             f"kiszámolva a trendek vagy nincs összefoglaló, a gomb elkészíti őket. A GitHub Pages "
-                            f"1–2 perc alatt frissül.")
+                            f"1–2 perc alatt frissül. Minden közzététel külön archív oldalt kap (dátum és időpont), "
+                            f"így az aznapi újabb közzététel nem írja felül a korábbit.")
+                choices, chosen = self.qa_choices()
+                qa_pick = gr.CheckboxGroup(choices=choices, value=chosen, label="Közzéteendő kérdések és válaszok",
+                                           info="A jelentésbe és a tématérképére csak a kijelöltek kerülnek. Zárójelben: "
+                                                "honnan jött a kérdés, és a hivatkozás-ellenőrzés eredménye "
+                                                "(✅ alátámasztott, ⚠️ részben, ❌ nem alátámasztott állítások száma).")
+                with gr.Row():
+                    all_btn = gr.Button("Mind", size="sm", scale=0, min_width=110)
+                    none_btn = gr.Button("Egyik sem", size="sm", scale=0, min_width=110)
                 with gr.Row():
                     prev_btn = gr.Button("Előnézet (letöltés)")
                     pub_btn = gr.Button("Közzététel", variant="primary")
                 prev_file = gr.File(label="Előnézet")
                 status = gr.Markdown()
-                busy([prev_btn.click], prev_btn, self.preview, None, prev_file, status,
+
+                def refresh_qa():
+                    c, v = self.qa_choices()
+                    return gr.update(choices=c, value=v)
+                pub_tab.select(refresh_qa, None, qa_pick)
+                qa_pick.input(self.select_qa, qa_pick, None)
+                all_btn.click(lambda: [v for _, v in self.qa_choices()[0]], None, qa_pick).then(self.select_qa, qa_pick, None)
+                none_btn.click(lambda: [], None, qa_pick).then(self.select_qa, qa_pick, None)
+
+                def do_preview(values):
+                    self.select_qa(values)
+                    return self.preview()
+                busy([prev_btn.click], prev_btn, do_preview, qa_pick, prev_file, status,
                      "Az előnézet készül (ha kell, a témák és az összefoglaló is).")
 
-                def do_publish():
+                def do_publish(values):
+                    self.select_qa(values)
                     r = self.publish()
-                    return (f"✅ Közzétéve. Weboldal: [{r['pages_url']}]({r['pages_url']}) · "
+                    return (f"✅ Közzétéve ({len(self.selected_log())} kérdés–válasszal). Weboldal: "
+                            f"[{r['pages_url']}]({r['pages_url']}) · archív oldal: `{r['label']}` · "
                             f"commit: [{r['sha'][:7]}]({r['commit_url']})")
-                busy([pub_btn.click], pub_btn, do_publish, None, status, status,
+                busy([pub_btn.click], pub_btn, do_publish, qa_pick, status, status,
                      "Közzététel folyamatban: a jelentés elkészítése és feltöltése a GitHubra.")
         return ui
 

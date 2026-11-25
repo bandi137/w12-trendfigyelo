@@ -33,13 +33,16 @@ A finomhangolt token közreműködőként nem működik más felhasználó repó
 ## 3. Mi történik a gombnyomáskor
 
 - Ha még nincsenek kiszámolva a trendek, vagy nincs összefoglaló, a felület elkészíti őket (egy-két Gemini-hívás).
-- Egyetlen commit kerül a `docs/` mappába: `index.html` (a legfrissebb jelentés) és `archiv/ÉÉÉÉ-HH-NN.html`
-  (aznapi példány). A commit szerzője a token tulajdonosa. Ugyanazon a napon újra közzétéve az aznapi példány felülíródik.
+- A *Közzététel* fülön jelölőnégyzetekkel választható ki, mely kérdés–válaszok kerüljenek a jelentésbe (alapból
+  mind; a próbakérdéseket érdemes kivenni). Az *Előnézet (letöltés)* gomb a kijelöltekkel készült változatot adja.
+- Egyetlen commit kerül a `docs/` mappába: `index.html` (a legfrissebb jelentés) és `archiv/ÉÉÉÉ-HH-NN_ÓÓPP.html`
+  (ennek a közzétételnek a példánya, magyar idő szerint). A commit szerzője a token tulajdonosa. Az aznapi újabb
+  közzététel külön archív oldalt kap, a korábbit nem írja felül.
 - A GitHub Pages 1–2 perc alatt frissül. A kód (`trendfigyelo/`, notebook) nem változik, így nincs ütközés.
 
 ## Biztonság
 
 - A tokent soha ne írd notebook-cellába, chatbe vagy e-mailbe, csak a *Secrets* fülre.
 - A beadás után, vagy ha kiszivárgott, töröld a tokent a GitHubon (*Delete*/*Revoke*).
-- A weboldal nyilvános: az arXiv-adatok mellett az **itt feltett kérdések és válaszok** is felkerülnek, ezért ne
+- A weboldal nyilvános: az arXiv-adatok mellett a **kijelölt kérdések és válaszok** is felkerülnek, ezért ne
   kérdezz személyes adatot tartalmazó dolgot.

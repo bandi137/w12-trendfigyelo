@@ -80,6 +80,40 @@ def test_app_publish_sends_index_archive_and_nojekyll(app, monkeypatch):
     assert paths[0] == "docs/.nojekyll" and paths[1].startswith("docs/archiv/20") and paths[2] == "docs/index.html"
     assert 'href="archiv/2026-11-01.html"' in sent["files"]["docs/index.html"]
     assert res["pages_url"] == "https://bandi137.github.io/w12-trendfigyelo/"
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{4}", res["label"]) and f"docs/archiv/{res['label']}.html" in sent["files"]
+    assert f"{res['label'][:10]} {res['label'][11:13]}:{res['label'][13:]}" in sent["files"]["docs/index.html"]
+
+
+def test_archive_label_is_unique_and_readable():
+    from datetime import datetime
+    from trendfigyelo.app import archive_label
+    when = datetime(2026, 11, 25, 17, 12)
+    assert archive_label(when) == "2026-11-25_1712"
+    assert archive_label(when, {"2026-11-25_1712"}) == "2026-11-25_1712-2"
+    assert archive_label(when, {"2026-11-25_1712", "2026-11-25_1712-2"}) == "2026-11-25_1712-3"
+    t = tf.report.archive_title
+    assert (t("2026-11-25_1712"), t("2026-11-25_1712-2"), t("2026-11-24")) == \
+        ("2026-11-25 17:12", "2026-11-25 17:12 (2.)", "2026-11-24")
+    assert sorted(["2026-11-25_1712", "2026-11-24", "2026-11-25"]) == ["2026-11-24", "2026-11-25", "2026-11-25_1712"]
+
+
+def test_publish_only_selected_answers(app):
+    app.rag.log.clear()
+    app.rag.ask("A notebook példakérdése az ágensekről", show=False)
+    app.ask("speech recognition audio")
+    app.ask("Mi Franciaország fővárosa?")
+    choices, chosen = app.qa_choices()
+    assert chosen == ["0", "1", "2"]                                          # alapból mind
+    assert "(notebook" in choices[0][0] and "(felület" in choices[1][0] and "✅1" in choices[1][0]
+    assert "❗ nem kapott forrásra hivatkozik" in choices[1][0]
+    app.select_qa(["0", "1"])                                                 # a próbakérdés kimarad
+    html = app.build_html()
+    assert "Franciaország" not in html and "speech recognition audio" in html
+    assert len(app.asked_questions()) == 2                                    # a térképen is csak a kijelöltek
+    app.ask("Új kérdés a kijelölés után")
+    assert app.qa_choices()[1] == ["0", "1", "3"]                              # az új alapból kijelölt, a régi nem
+    app.select_qa([])
+    assert 'id="kerdesek"' not in app.build_html()
 
 
 class FakeGitHub:
