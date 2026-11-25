@@ -19,25 +19,25 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | |
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `63 passed` (a figyelmeztetések nem számítanak). | |
-| E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | |
+| E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | OK|
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `63 passed` (a figyelmeztetések nem számítanak). | OK|
+| E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | OK|
 
 ### 1.2. A felület védelme
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| V1 | A Colab 🔑 Secrets fülön kapcsold ki a notebook hozzáférését a `UI_PASSWORD`-höz, és futtasd a 7. szakaszt. | A cella hibaüzenettel leáll („A nyilvános felület jelszó nélkül nem indul el…”), nincs `gradio.live` link. | |
-| V2 | Kapcsold vissza, és futtasd újra. | Bejelentkező ablak; `w12` + a jelszó után a felület betölt. | |
+| V1 | A Colab 🔑 Secrets fülön kapcsold ki a notebook hozzáférését a `UI_PASSWORD`-höz, és futtasd a 7. szakaszt. | A cella hibaüzenettel leáll („A nyilvános felület jelszó nélkül nem indul el…”), nincs `gradio.live` link. | OK|
+| V2 | Kapcsold vissza, és futtasd újra. | Bejelentkező ablak; `w12` + a jelszó után a felület betölt. | OK|
 
 ### 1.3. Kérdezz fül
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| K1 | Tegyél fel egy kérdést. | Kattintás után a gomb „⏳ Kérdezek…” lesz és letiltódik, a válasz helyén várakozó üzenet; a végén a gomb visszaáll. A fülön **nincs** térkép. | |
-| K2 | „Csak ettől a hónaptól”: **2026-10**, „Hány cikket kapjon a modell”: **10**. | Minden forrás 2026-10-es. | |
-| K3 | Angol kérdés „MI” vagy „van der Waals” szóval, a válasz nyelve **automatikus**, majd ugyanez **angol** beállítással. | Automatikusnál lehet magyar a válasz (ez az ismert korlát); „angol” választásnál angol. | |
-| K4 | Egy témán kívüli kérdés (pl. „Mi Franciaország fővárosa?”). | Ha a válasz egyetlen forrásra sem hivatkozik, figyelmeztetés jelenik meg: „A válasz egyetlen átadott forrásra sem hivatkozik…”. | |
+| K1 | Tegyél fel egy kérdést. | Kattintás után a gomb „⏳ Kérdezek…” lesz és letiltódik, a válasz helyén várakozó üzenet; a végén a gomb visszaáll. A fülön **nincs** térkép. | OK|
+| K2 | „Csak ettől a hónaptól”: **2026-10**, „Hány cikket kapjon a modell”: **10**. | Minden forrás 2026-10-es. | OK|
+| K3 | Angol kérdés „MI” vagy „van der Waals” szóval, a válasz nyelve **automatikus**, majd ugyanez **angol** beállítással. | Automatikusnál lehet magyar a válasz (ez az ismert korlát); „angol” választásnál angol. | OK|
+| K4 | Egy témán kívüli kérdés (pl. „Mi Franciaország fővárosa?”). | Ha a válasz egyetlen forrásra sem hivatkozik, figyelmeztetés jelenik meg: „A válasz egyetlen átadott forrásra sem hivatkozik…”. | OK|
 | K5 | Tegyél fel egy kérdést bekapcsolt „Hivatkozások tartalmi ellenőrzése” mellett. Olvasd el a választ és a hivatkozott absztraktokat (a forráslinkeken). | A válasz alatt: „Hivatkozások tartalmi ellenőrzése (N hivatkozott állítás): ✅ … · ⚠️ … · ❌ …”, alatta a részben vagy nem alátámasztott állítások indoklással. Egyetértesz-e az ítéletekkel? Az eltéréseket írd a 4. pontba (állítás, ítélet, a te véleményed). | |
 | K6 | Ugyanez kikapcsolt jelölőnégyzettel, majd a közzétett jelentés kérdés–válasz kártyái. | Kikapcsolva nincs ellenőrzés (gyorsabb). A jelentésben a kártyán lenyitható „Hivatkozások tartalmi ellenőrzése” sor; ha van gyanús állítás, piros. | |
 
@@ -45,51 +45,51 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| T1 | A felület indulása után, a Kérdezz fülön feltett kérdés **előtt** nyisd meg a fület (a notebook 4. szakaszának kérdései nem számítanak). | „A kérdés és a források a tématérképen” jelölőnégyzet üres és szürke, nem választható. | |
-| T2 | „Témák összehúzása”: **0**, majd **0,8** (a csúszka elengedése után a térkép újrarajzolódik). | 0-nál szétterülő, egymásba folyó felhő; 0,8-nál tömör foltok. A foltok helye és a térkép iránya nem változik. | |
-| T3 | Tegyél fel két kérdést a Kérdezz fülön, majd gyere vissza. | A jelölőnégyzet aktív és bejelölt; a térképen a **legutóbbi** kérdés: ★, karikák, vonalak és „1”–„5” címkék. | |
-| T4 | Vidd az egeret a címkékre és a karikákra. | Az „1.”–„5.” források címe és sorrendje megegyezik a Kérdezz fül forráslistájával. | |
-| T5 | A térkép bal felső menüjében válts a másik kérdésre, majd „(egyik kérdés sem)”. | A csillag, a karikák és a címkék a kiválasztott kérdéshez váltanak, illetve eltűnnek. | |
-| T6 | Vedd ki a pipát a jelölőnégyzetből. | A kérdések eltűnnek a térképről. | |
-| T7 | A térkép alatti hónapcsúszkával válassz egy hónapot. | Az adott hónap pontjai kiemelődnek; a kérdés jelölései megmaradnak. | |
+| T1 | A felület indulása után, a Kérdezz fülön feltett kérdés **előtt** nyisd meg a fület (a notebook 4. szakaszának kérdései nem számítanak). | „A kérdés és a források a tématérképen” jelölőnégyzet üres és szürke, nem választható. | OK|
+| T2 | „Témák összehúzása”: **0**, majd **0,8** (a csúszka elengedése után a térkép újrarajzolódik). | 0-nál szétterülő, egymásba folyó felhő; 0,8-nál tömör foltok. A foltok helye és a térkép iránya nem változik. | OK|
+| T3 | Tegyél fel két kérdést a Kérdezz fülön, majd gyere vissza. | A jelölőnégyzet aktív és bejelölt; a térképen a **legutóbbi** kérdés: ★, karikák, vonalak és „1”–„5” címkék. | OK|
+| T4 | Vidd az egeret a címkékre és a karikákra. | Az „1.”–„5.” források címe és sorrendje megegyezik a Kérdezz fül forráslistájával. | OK|
+| T5 | A térkép bal felső menüjében válts a másik kérdésre, majd „(egyik kérdés sem)”. | A csillag, a karikák és a címkék a kiválasztott kérdéshez váltanak, illetve eltűnnek. | OK|
+| T6 | Vedd ki a pipát a jelölőnégyzetből. | A kérdések eltűnnek a térképről. | OK|
+| T7 | A térkép alatti hónapcsúszkával válassz egy hónapot. | Az adott hónap pontjai kiemelődnek; a kérdés jelölései megmaradnak. | OK|
 
 ### 1.5. Trendek fül
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| R1 | „Témák számítása”, majd „Összefoglaló írása”. | Mindkettőnél „⏳ …” gomb és várakozó üzenet, a végén visszaáll. | |
-| R3 | Nézd meg az 5. szakasz és a Trendek fül táblázatát. | Minden témának van „leírás”-a (egy mondat). Ha nincs, a notebook kiírja: „⚠ … témánál nincs leírás…”; ekkor a Drive-on a `valasz_temanevek.txt` tartalmát másold a 4. pontba. | |
-| R4 | Olvasd el a Trendek fül és a közzétett jelentés Trendek részének bevezetőjét, és a grafikon alcímét. | A növekedés leírása kiírja a 0,5 százalékpontos simítást és a példát (1 % → 10 %: 7×, nem 10×). | |
+| R1 | „Témák számítása”, majd „Összefoglaló írása”. | Mindkettőnél „⏳ …” gomb és várakozó üzenet, a végén visszaáll. | OK|
+| R3 | Nézd meg az 5. szakasz és a Trendek fül táblázatát. | Minden témának van „leírás”-a (egy mondat). Ha nincs, a notebook kiírja: „⚠ … témánál nincs leírás…”; ekkor a Drive-on a `valasz_temanevek.txt` tartalmát másold a 4. pontba. | OK|
+| R4 | Olvasd el a Trendek fül és a közzétett jelentés Trendek részének bevezetőjét, és a grafikon alcímét. | A növekedés leírása kiírja a 0,5 százalékpontos simítást és a példát (1 % → 10 %: 7×, nem 10×). | OK|
 | R2 | Olvasd el az összefoglalót. | Ismert hiba (nyitott): minőségi, ok-okozati állításokat tehet („olcsóbbá, okosabbá”). Ha ilyet látsz, másold ide. | |
 
 ### 1.5b. Kiértékelés fül
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| KI1 | Nyisd meg a fület, és olvasd el a bevezetőt. | Laikusként is érthető, mit mér a fül és hogyan olvasd az ábrát. Ami nem világos, ide. | |
-| KI2 | „Kiértékelés futtatása”. | Összefoglaló mondat; négyzetrács két sorral (magyar, angol), a négyzetekben a jó cikk helye; táblázat a helyezésekkel. Egy négyzetre mutatva a kérdés és a várt cikk. A számok egyeznek a táblázattal. | |
-| KI3 | Görgess le. | „A válaszok kézi pontozása”: 8 sáv, átlag 4,1; egy sávra mutatva az indoklás. | |
+| KI1 | Nyisd meg a fület, és olvasd el a bevezetőt. | Laikusként is érthető, mit mér a fül és hogyan olvasd az ábrát. Ami nem világos, ide. | OK|
+| KI2 | „Kiértékelés futtatása”. | Összefoglaló mondat; négyzetrács két sorral (magyar, angol), a négyzetekben a jó cikk helye; táblázat a helyezésekkel. Egy négyzetre mutatva a kérdés és a várt cikk. A számok egyeznek a táblázattal. | OK|
+| KI3 | Görgess le. | „A válaszok kézi pontozása”: 8 sáv, átlag 4,1; egy sávra mutatva az indoklás. | OK|
 | KI4 | A közzétett jelentés Kiértékelés része, telefonon és sötét módban is. | Ugyanez a két ábra, olvashatóan; a táblázatban színes helyezésjelölők. | |
 
 ### 1.5c. Közzététel fül
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| P1 | Tegyél fel néhány kérdést (köztük egy próbakérdést), majd nyisd meg a Közzététel fület. | Minden kérdés jelölőnégyzettel, alapból kijelölve; mellette „notebook” vagy „felület”, és a hivatkozás-ellenőrzés eredménye (✅ ⚠️ ❌). A „Mind” és az „Egyik sem” gomb működik. | |
+| P1 | Tegyél fel néhány kérdést (köztük egy próbakérdést), majd nyisd meg a Közzététel fület. | Minden kérdés jelölőnégyzettel, alapból kijelölve; mellette „notebook” vagy „felület”, és a hivatkozás-ellenőrzés eredménye (✅ ⚠️ ❌). A „Mind” és az „Egyik sem” gomb működik. | OK|
 | P2 | Vedd ki a próbakérdést, és kérj előnézetet. | A letöltött jelentésben és a tématérkép kérdésmenüjében a próbakérdés nincs benne. Ha utána új kérdést teszel fel, az a listában alapból kijelölt, a kivett próbakérdés kivéve marad. | |
-| P3 | Tegyél közzé kétszer egymás után (legalább egy perc különbséggel). | Az üzenet kiírja a kérdés–válaszok számát és az archív oldal nevét (pl. `2026-11-25_1712`). A jelentés „Korábbi jelentések” listájában mindkettő szerepel („2026-11-25 17:12”, „2026-11-25 17:14”), a korábbi nem íródott felül. A jelentés időpontja magyar idő. | |
-| P4 | A Közzététel fül alján: „Archív jelentések törlése” → „Archívum listázása”, jelölj ki egy régi, felesleges archív jelentést, a megerősítés nélkül próbáld törölni, majd megerősítéssel. | Megerősítés nélkül nem töröl. Utána: „🗑 Törölve: …”, commit-link. 1–2 perc múlva a weboldal archívumlistájából eltűnt, és a megmaradó archív oldalakon sincs rá link. Ha bizonytalan vagy, mit törölj, egy próba-közzététel (P3) archív példányát töröld. | |
+| P3 | Tegyél közzé kétszer egymás után (legalább egy perc különbséggel). | Az üzenet kiírja a kérdés–válaszok számát és az archív oldal nevét (pl. `2026-11-25_1712`). A jelentés „Korábbi jelentések” listájában mindkettő szerepel („2026-11-25 17:12”, „2026-11-25 17:14”), a korábbi nem íródott felül. A jelentés időpontja magyar idő. | OK|
+| P4 | A Közzététel fül alján: „Archív jelentések törlése” → „Archívum listázása”, jelölj ki egy régi, felesleges archív jelentést, a megerősítés nélkül próbáld törölni, majd megerősítéssel. | Megerősítés nélkül nem töröl. Utána: „🗑 Törölve: …”, commit-link. 1–2 perc múlva a weboldal archívumlistájából eltűnt, és a megmaradó archív oldalakon sincs rá link. Ha bizonytalan vagy, mit törölj, egy próba-közzététel (P3) archív példányát töröld. | OK|
 
 ### 1.6. A közzétett jelentés (a Közzététel fül után, https://bandi137.github.io/w12-trendfigyelo/)
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| J1 | Kattints egy pontra a tématérképen. | Új lapon megnyílik a cikk az arXivon. | |
-| J2 | A térkép bal felső menüje és a ▶ lejátszás. | A menü a kérdések között vált; a lejátszás végiglépteti a hónapokat („■ állj” megállítja). | |
-| J3 | Telefonon (vagy keskeny ablakban). | A trendgrafikon alatt jelmagyarázat van, nem lóg ki; a térkép kitölti a szélességet, alatta nincs üres sáv; a kérdésválasztó a csúszka alatt van. | |
-| J4 | Sötét módban (telefon vagy böngésző beállítás). | A térkép feliratai, a karikák, a címkék és a menü olvashatók. | |
-| J5 | Méretezd át az ablakot széles → keskeny → széles. | A térkép egyszer sem marad üres. | |
-| J6 | Olvasd el a Trendek és a Tématérkép bevezetőjét, és a térkép címét. | A Trendeknél: „Havonta legfeljebb 3000 cikk szerepel, a hónap minden napjáról…”. A térképnél a tengelyek magyarázata és a vektorok dimenziója (768); a címben „… cikk (a képen kb. 6000 pont, véletlen minta)”. | |
+| J1 | Kattints egy pontra a tématérképen. | Új lapon megnyílik a cikk az arXivon. | OK|
+| J2 | A térkép bal felső menüje és a ▶ lejátszás. | A menü a kérdések között vált; a lejátszás végiglépteti a hónapokat („■ állj” megállítja). | OK|
+| J3 | Telefonon (vagy keskeny ablakban). | A trendgrafikon alatt jelmagyarázat van, nem lóg ki; a térkép kitölti a szélességet, alatta nincs üres sáv; a kérdésválasztó a csúszka alatt van. | OK|
+| J4 | Sötét módban (telefon vagy böngésző beállítás). | A térkép feliratai, a karikák, a címkék és a menü olvashatók. | OK|
+| J5 | Méretezd át az ablakot széles → keskeny → széles. | A térkép egyszer sem marad üres. | OK|
+| J6 | Olvasd el a Trendek és a Tématérkép bevezetőjét, és a térkép címét. | A Trendeknél: „Havonta legfeljebb 3000 cikk szerepel, a hónap minden napjáról…”. A térképnél a tengelyek magyarázata és a vektorok dimenziója (768); a címben „… cikk (a képen kb. 6000 pont, véletlen minta)”. | OK|
 
 ### 1.7. Dokumentáció
 
@@ -136,4 +136,5 @@ A [dokumentáció 6. pontja](../W12_DOCUMENTATION.md#6-ismert-hibák-szükséges
 | Dátum | Hol | Mit tapasztaltál | Javaslat |
 |---|---|---|---|
 | 2026-11-25 | `trendfigyelo/tmap.py`, `_fingerprint()` – a térkép-gyorsítótár | A gyorsítótár ellenőrzése a teljes vektorállományt, a cikkazonosítókat, a vetítési módszert és az UMAP-paramétereket figyeli, a véletlen kezdőértéket (`seed`) azonban nem. Más `seed` mellett a program a korábban kiszámított térképet töltheti be. Prioritás: alacsony, az alapbeállításokkal nem okoz hibát. | A `seed` kerüljön az ellenőrző adatok közé. **Javítva (november 25.):** a `seed` a `terkep.json`-ba kerül, eltérés esetén a térkép újraszámolódik; a korábbi, `seed` nélküli tárolás az alapértékkel (42) készültnek számít, ezért nem számolódik újra feleslegesen. Teszt: `test_map_coords_cached_and_recomputed`. |
-| | | | |
+| 2026-11-25| gradio.live Közzététel fül| A »Közzéteendő kérdések és válaszok« egyetlen közös konténerben (dobozban), egymás után ömlesztve, strukturálatlanul jelennek meg. Ugyanígy az »Archív jelentések« is egybefolyva, tagolás nélkül kerülnek listázásra.| Alakítsd át a megjelenítést úgy, hogy minden egyes elem különálló kártyaként vagy jól elkülönített listaelemként jelenjen meg, egyértelmű vizuális tagolással.|
+| 2026-11-25|  Közzétett HTML |             Telefonon keskeny képernyőn a Térképen a kérdésválasztó a csúszka alatt van. Ez OK, de nem lehet kérdést választani, mert a térkép boxából lefelé kilóg a lista, és nem látszik.             |          A kérdésválasztót úgy kell elhelyezni, hogy legördítéskor az opciók láthatók legyenek.          |
