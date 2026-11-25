@@ -43,7 +43,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
-| T1 | Kérdés **előtt** nyisd meg a fület. | „A kérdés és a források a tématérképen” jelölőnégyzet szürke, nem választható. | |
+| T1 | A felület indulása után, a Kérdezz fülön feltett kérdés **előtt** nyisd meg a fület (a notebook 4. szakaszának kérdései nem számítanak). | „A kérdés és a források a tématérképen” jelölőnégyzet üres és szürke, nem választható. | |
 | T2 | „Témák összehúzása”: **0**, majd **0,8** (a csúszka elengedése után a térkép újrarajzolódik). | 0-nál szétterülő, egymásba folyó felhő; 0,8-nál tömör foltok. A foltok helye és a térkép iránya nem változik. | |
 | T3 | Tegyél fel két kérdést a Kérdezz fülön, majd gyere vissza. | A jelölőnégyzet aktív és bejelölt; a térképen a **legutóbbi** kérdés: ★, karikák, vonalak és „1”–„5” címkék. | |
 | T4 | Vidd az egeret a címkékre és a karikákra. | Az „1.”–„5.” források címe és sorrendje megegyezik a Kérdezz fül forráslistájával. | |

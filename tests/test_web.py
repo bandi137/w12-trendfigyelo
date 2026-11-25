@@ -384,8 +384,11 @@ def test_app_question_map_and_report(app):
     app.rag.llm = Cite()
     app.rag.log.clear()
     assert not app.has_questions() and app.asked_questions() == []
+    app.rag.ask("A notebookban feltett kérdés", show=False)                  # a notebookból: a jelentésbe igen,
+    assert not app.has_questions() and len(app.asked_questions()) == 1      # a felület jelölőnégyzetét nem kapcsolja
+    app.rag.log.clear()
     app.ask("Milyen ágensek vannak?")
-    assert app.has_questions() and len(app.asked_questions()) == 1
+    assert app.has_questions() and len(app.asked_questions(ui_only=True)) == len(app.asked_questions()) == 1
     fig = app.map_figure(questions=app.asked_questions(), active_question="last")
     assert [t.name for t in fig.data].count("q-csillag") == 1
     html = app.build_html()

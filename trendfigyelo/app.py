@@ -45,6 +45,7 @@ class TrendApp:
         self.s = dict(settings)          # category, months, emb_model, llm_model, n_topics, n_show, top_k
         self.trends, self.summary, self.eval_df, self.eval_summary = None, "", None, None
         self.coords = None               # a tématérkép koordinátái (a Drive-on is tárolva)
+        self.ui_log = []                 # a felületen (Kérdezz fül) feltett kérdések naplóbejegyzései
 
     # --- műveletek (a felülettől függetlenül is hívhatók és tesztelhetők) ---------------------------
 
@@ -55,6 +56,7 @@ class TrendApp:
             return "Írj be egy kérdést."
         answer = self.rag.ask(question, k=k or self.s["top_k"], month_from=month_from or None, show=False, lang=lang)
         entry = self.rag.log[-1]
+        self.ui_log.append(entry)
         hits = self.df.set_index("id").loc[[i for i in entry["sources"].split(", ") if i]]
         linked = re.sub(r"\[(\d{4}\.\d{4,5})\]", lambda m: f"[[{m.group(1)}]]({report.arxiv_url(m.group(1))})", answer)
         sources = "\n".join(f"{n}. [{i}]({report.arxiv_url(i)}) – {r.title} ({r.month})"
@@ -101,11 +103,13 @@ class TrendApp:
                          pull=self.s.get("map_pull", PULL), questions=questions, active_question=active_question)
 
     def has_questions(self):
-        return any(e.get("sources") for e in self.rag.log)
+        """Van-e a felületen feltett, forrással megválaszolt kérdés (a Tématérkép fül jelölőnégyzetéhez)."""
+        return any(e.get("sources") for e in self.ui_log)
 
-    def asked_questions(self):
-        """A felületen és a notebookban feltett, forrással megválaszolt kérdések a térképhez (tmap.map_question)."""
-        return [map_question(self.rag, e) for e in self.rag.log if e.get("sources")]
+    def asked_questions(self, ui_only=False):
+        """Forrással megválaszolt kérdések a térképhez (tmap.map_question). ui_only: csak a felületen feltettek
+        (a Tématérkép fül); különben a notebookban feltettek is (a jelentés, ahol a kérdés–válaszok is szerepelnek)."""
+        return [map_question(self.rag, e) for e in (self.ui_log if ui_only else self.rag.log) if e.get("sources")]
 
     def summarize(self):
         if self.trends is None:
@@ -235,7 +239,7 @@ class TrendApp:
                         has_q = self.has_questions()
                         show_q = gr.Checkbox(value=has_q, interactive=has_q,
                                              label="A kérdés és a források a tématérképen",
-                                             info="Feltett kérdés nélkül nem választható.")
+                                             info="A Kérdezz fülön feltett kérdés után választható.")
                         map_btn = gr.Button("Térkép rajzolása", variant="primary")
                 map_status = gr.Markdown()
                 map_plot = gr.Plot(show_label=False)
@@ -243,7 +247,7 @@ class TrendApp:
                 def draw_map(p, sq):
                     """A térkép a választott összehúzással; bejelölve a feltett kérdésekkel (a legutóbbi látszik, a
                     többi a térkép bal felső menüjéből választható)."""
-                    qs = self.asked_questions() if sq else []
+                    qs = self.asked_questions(ui_only=True) if sq else []
                     return self.map_figure(pull=p, questions=qs or None, active_question="last")
                 busy([map_btn.click, map_pull.release, show_q.input], map_btn, draw_map, [map_pull, show_q], map_plot,
                      map_status, "A térkép rajzolása folyamatban (elsőre a koordináták számítása 1–2 perc).")
