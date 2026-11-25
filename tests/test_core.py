@@ -210,6 +210,36 @@ def test_evaluate(corpus):
     res, summary = tf.evaluate([{"q": "speech recognition audio", "expected": [top[3]]}],
                                lambda question, k: tf.retrieve(df, emb, q(question), k=k))
     assert summary.to_dict() == {"hit@1": 0.0, "hit@5": 1.0, "hit@10": 1.0}
+    assert res["helyezés"].tolist() == [4] and res["nyelv_kod"].tolist() == ["en"] and res["várt cikk"][0] == top[3]
+    assert tf.first_rank(["a", "b", "c"], ["c", "b"]) == 2 and tf.first_rank(["a"], ["x"]) is None
+
+
+def test_eval_figure_grid_and_scores(tmp_path):
+    import pandas as pd
+    ev = pd.DataFrame({"kérdés": ["Mi újság a gépi fordításban?", "Hogyan működik?", "How do agents plan?"],
+                       "hit@1": [1, 0, 0], "hit@5": [1, 0, 1], "hit@10": [1, 1, 1],
+                       "helyezés": pd.array([1, 7, 3], dtype="Int64"), "nyelv_kod": ["hu", "hu", "en"],
+                       "várt cikk": ["2601.00001", "2601.00002", "2601.00003"]})
+    fig = tf.eval_figure(ev)
+    hm = fig.data[0]
+    assert hm.type == "heatmap" and list(hm.y) == ["Magyar (2)", "Angol (1)"]
+    assert [list(r) for r in hm.text] == [["1", "7"], ["3", ""]]                     # helyezés szerint rendezve, üres kitöltés
+    assert [list(r) for r in hm.z] == [[0.5, 2.5], [1.5, None]]                      # kategória: 1. / 2–5. / 6–10.
+    assert [t.name for t in fig.data[1:]] == [n for n, _ in tf.evalviz.RANK_BINS]    # jelmagyarázat
+    assert "2/3" not in tf.overview_text(ev) and "**3 tesztkérdésből**" in tf.overview_text(ev)
+    assert "magyar kérdéseknél 1/2, angol kérdéseknél 1/1" in tf.overview_text(ev)
+    assert tf.rank_bin(None) == 3 and tf.rank_bin(pd.NA) == 3 and tf.rank_bin(11) == 3
+    assert tf.eval_view(ev)["a jó cikk helye"].tolist() == ["1.", "7.", "3."]
+
+    path = tmp_path / "p.csv"
+    pd.DataFrame({"question": ["Mi az?", "What is it?", "Nincs kód"], "answer": ["a"] * 3, "pont": [3, 5, 4],
+                  "megjegyzes": ["HU01: Hiányos.", "EN01: Pontos.", "csak megjegyzés"]}).to_csv(path, index=False)
+    sc = tf.load_scores(str(path))
+    assert sc["kód"].tolist() == ["HU01", "EN01", ""] and sc.nyelv_kod.tolist() == ["hu", "en", "hu"]
+    assert sc["indoklás"].tolist() == ["Hiányos.", "Pontos.", "csak megjegyzés"]
+    bar = tf.scores_figure(sc).data[0]
+    assert list(bar.x) == [3, 4, 5] and bar.y[0].startswith("HU01 · ")             # magyar elöl, utána angol
+    assert tf.load_scores(str(tmp_path / "nincs.csv")) is None
 
 
 def test_generate_retries_on_quota(monkeypatch):

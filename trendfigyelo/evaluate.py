@@ -4,6 +4,8 @@ import re
 
 import pandas as pd
 
+from .rag import detect_language
+
 ARXIV_ID = re.compile(r"\d{4}\.\d{4,5}")
 
 
@@ -39,12 +41,23 @@ def hit_at_k(results, expected, k):
     return int(bool(set(results[:k]) & set(expected)))
 
 
+def first_rank(results, expected):
+    """A várt cikkek közül az első helyezése a találatok között (1-től), vagy None, ha egyik sincs köztük."""
+    want = set(expected)
+    return next((i for i, r in enumerate(results, 1) if r in want), None)
+
+
 def evaluate(questions, retrieve_fn):
-    """questions: [{"q": ..., "expected": [arXiv-azonosítók]}]; retrieve_fn(kérdés, k) -> találatok DataFrame-je."""
+    """questions: [{"q": ..., "expected": [arXiv-azonosítók]}]; retrieve_fn(kérdés, k) -> találatok DataFrame-je.
+    Kérdésenként: hit@1/5/10, a jó cikk helyezése az első 10 találat között (helyezés; üres, ha nincs köztük),
+    a kérdés nyelve és a várt cikk(ek)."""
     rows = []
     for q in questions:
         ids = retrieve_fn(q["q"], 10).id.tolist()
         rows.append({"kérdés": q["q"], "készítette": q.get("keszitette", ""), "hit@1": hit_at_k(ids, q["expected"], 1),
-                     "hit@5": hit_at_k(ids, q["expected"], 5), "hit@10": hit_at_k(ids, q["expected"], 10)})
+                     "hit@5": hit_at_k(ids, q["expected"], 5), "hit@10": hit_at_k(ids, q["expected"], 10),
+                     "helyezés": first_rank(ids, q["expected"]), "nyelv_kod": detect_language(q["q"]),
+                     "várt cikk": ", ".join(q["expected"])})
     res = pd.DataFrame(rows)
+    res["helyezés"] = res["helyezés"].astype("Int64")
     return res, res[["hit@1", "hit@5", "hit@10"]].mean().round(2)

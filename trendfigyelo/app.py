@@ -9,6 +9,7 @@ from datetime import datetime
 
 from . import report
 from .evaluate import evaluate, load_questions
+from .evalviz import eval_figure, eval_view, load_scores, overview_text, scores_figure
 from .data import download_dates, per_month_limit, sampling_of
 from .publish import PublishError, list_archive, pages_url, publish_files
 from .tmap import PULL, map_coords, map_question, topic_map
@@ -35,6 +36,28 @@ def git_version(repo_dir):
                               text=True, timeout=10).stdout.strip()
     except Exception:
         return ""
+
+
+EVAL_HELP = """### Mit mér ez a fül?
+A rendszer egy kérdésre két lépésben válaszol. Először **kikeresi** a cikkek közül a kérdéshez leginkább hasonlókat,
+aztán ezek közül az első néhányat (alapból 5-öt) odaadja a nyelvi modellnek, amely ezekből írja meg a választ.
+Ha a keresés nem hozza elő a jó cikket, a modell sem tud jó választ adni, ezért a keresést külön ellenőrizzük.
+
+**Hogyan?** Tesztkérdéseket írtunk magyarul és angolul, és mindegyikhez kézzel kikerestük azt a cikket, amelyik
+valóban válaszol rá. A gomb minden kérdést lefuttat, és megnézi, **hányadik helyen** hozza a keresés a jó cikket.
+
+**Hogyan olvasd az ábrát?** Egy négyzet egy kérdés, a szám a jó cikk helye a találatok között.
+Sötétkék: az első helyen van; kék: a 2–5. helyen (ezt még megkapja a modell); világoskék: a 6–10. helyen
+(alapbeállításban már nem kapja meg); szürke: nincs az első 10 között. Minél több a sötét négyzet, annál jobb.
+A szakirodalom ezt *hit@k*-nak hívja: a hit@5 például azt adja meg, a kérdések hányad részénél van a jó cikk
+az első 5 találatban. Egy négyzetre mutatva látszik a kérdés."""
+
+SCORES_HELP = """### A válaszok kézi pontozása
+A keresés mellett a nyelvi modell válaszait is ellenőriztük: a pontozó a választ a modellnek átadott cikkek
+absztraktjaival vetette össze, és 1–5 ponttal értékelte, mennyire pontos, teljes és a forrásokkal alátámasztott
+(5: pontos és teljes, helyes hivatkozásokkal; alacsonyabb: hiányos válasz, hibás hivatkozás, vagy a kapott cikkek
+nem elegendőek a válaszhoz). Ez az ábra a korábban pontozott válaszokat mutatja (`eval/qa_pontozas.csv`), a gomb
+nem változtat rajta. Egy sávra mutatva látszik az indoklás."""
 
 
 class TrendApp:
@@ -119,6 +142,10 @@ class TrendApp:
                                         self.s["category"], n=self.s["n_show"])
         return self.summary
 
+    def scores(self):
+        """A kézzel pontozott válaszok a repóból (eval/qa_pontozas.csv), ha vannak."""
+        return load_scores(os.path.join(self.repo_dir, "eval", "qa_pontozas.csv"))
+
     def run_eval(self, path=None):
         path = path or os.path.join(self.repo_dir, "eval", "kerdesek.csv")
         questions = load_questions(path, known_ids=set(self.df.id))
@@ -148,7 +175,8 @@ class TrendApp:
             self.summarize()
         return report.build_report(self.meta(), self.trends["table"], self.figure(), self.summary, self.rag.log,
                                    self.df, self.eval_df, self.eval_summary, archive, self.s["n_show"], archive_prefix,
-                                   map_fig=self.map_figure(play_button=True, questions=self.asked_questions() or None))
+                                   map_fig=self.map_figure(play_button=True, questions=self.asked_questions() or None),
+                                   scores=self.scores())
 
     def preview(self):
         """A jelentés mentése a Drive-ra (letölthető előnézet), közzététel nélkül."""
@@ -293,19 +321,23 @@ class TrendApp:
                      "10–60 másodperc).")
 
             with gr.Tab("Kiértékelés"):
-                gr.Markdown("A tesztkérdések a repó `eval/kerdesek.csv` fájljában vannak. Szerkesztés után futtasd "
-                            "újra a notebook első celláját, hogy a friss fájl lejöjjön a GitHubról.")
+                gr.Markdown(EVAL_HELP)
                 eval_btn = gr.Button("Kiértékelés futtatása", variant="primary")
                 eval_sum = gr.Markdown()
-                eval_tab = gr.Dataframe(wrap=True, interactive=False)
+                eval_plot = gr.Plot(show_label=False)
+                eval_tab = gr.Dataframe(wrap=True, interactive=False, visible=False)
 
                 def do_eval():
                     res, summ = self.run_eval()
                     if res is None:
-                        return "Még nincs tesztkérdés az `eval/kerdesek.csv`-ben.", None
-                    return " · ".join(f"**{k}:** {v:.2f}" for k, v in summ.items()), res
-                busy([eval_btn.click], eval_btn, do_eval, None, [eval_sum, eval_tab], eval_sum,
-                     "A kiértékelés fut: minden tesztkérdésre keresés a cikkek között.")
+                        return "Még nincs tesztkérdés az `eval/kerdesek.csv`-ben.", None, gr.update(visible=False)
+                    return overview_text(res), eval_figure(res), gr.update(value=eval_view(res), visible=True)
+                busy([eval_btn.click], eval_btn, do_eval, None, [eval_sum, eval_plot, eval_tab], eval_sum,
+                     "A kiértékelés fut: minden tesztkérdésre keresés a cikkek között (néhány másodperc).")
+                scores = self.scores()
+                if scores is not None and len(scores):
+                    gr.Markdown(SCORES_HELP)
+                    gr.Plot(value=scores_figure(scores, title=False), show_label=False)
 
             with gr.Tab("Közzététel"):
                 gr.Markdown(f"A jelentés (trendek, összefoglaló, az itt feltett kérdések és válaszok, kiértékelés) "

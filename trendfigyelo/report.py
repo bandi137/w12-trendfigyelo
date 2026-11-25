@@ -199,11 +199,69 @@ def _sample_note(meta):
             "veszi át, ezért a trendek erre a mintára vonatkoznak.")
 
 
+EVAL_LEAD = ("A válasz minősége azon múlik, hogy a keresés megtalálja-e a jó cikket: a nyelvi modell csak az első "
+             "néhány (alapból 5) találatot kapja meg. Ezért tesztkérdéseket írtunk, mindegyikhez kikerestük azt a cikket, "
+             "amelyik valóban válaszol rá, és megnéztük, hányadik helyen hozza a keresés (<code>eval/kerdesek.csv</code>). "
+             "Egy négyzet egy kérdés: minél több a sötétkék, annál jobb. A szakirodalom ezt hit@k-nak hívja: például "
+             "a hit@5 azt adja meg, a kérdések hányad részénél van a jó cikk az első 5 találat között.")
+SCORES_LEAD = ("A keresés mellett a nyelvi modell válaszait is ellenőriztük: a pontozó a választ a modellnek átadott "
+               "cikkek absztraktjaival vetette össze, és 1–5 ponttal értékelte, mennyire pontos, teljes és a forrásokkal "
+               "alátámasztott (5: pontos és teljes, helyes hivatkozásokkal; alacsonyabb: hiányos válasz, hibás hivatkozás, "
+               "vagy a kapott cikkek nem elegendőek a válaszhoz). Egy sávra mutatva látszik az indoklás.")
+
+
+def _eval_section(eval_df, eval_summary, scores, plotly_loaded):
+    """Kiértékelés: közérthető bevezető, összesítő csempék, négyzetrács a helyezésekről, kérdéstáblázat
+    és (ha van) a kézi pontozás ábrája. A régi, helyezés nélküli eredményeknél a régi táblázat marad."""
+    from .evalviz import RANK_BINS, eval_figure, rank_bin, rank_text, scores_figure
+    e = html.escape
+    cfg = {"displayModeBar": False, "responsive": True}
+    parts = ['<section id="kiertekeles"><h2>Kiértékelés</h2>']
+
+    def plot(f):
+        nonlocal plotly_loaded
+        out = f.to_html(include_plotlyjs=False if plotly_loaded else "cdn", full_html=False, config=cfg)
+        plotly_loaded = True
+        return f'<div class="chart">{out}</div>'
+
+    if eval_df is not None:
+        n = len(eval_df)
+        parts.append(f'<p class="lead">{EVAL_LEAD}</p>')
+        labels = {"hit@1": "az első helyen", "hit@5": "az első 5 között", "hit@10": "az első 10 között"}
+        parts.append('<div class="stats">' + "".join(
+            f'<div class="stat"><span>{labels.get(k, e(k))}</span><b>{int(eval_df[k].sum())}/{n}</b>'
+            f'<small>{e(k)} = {float(v):.2f}</small></div>' for k, v in (eval_summary or {}).items() if k in eval_df) + "</div>")
+        if "helyezés" in eval_df:
+            parts.append(plot(eval_figure(eval_df)))
+
+            def badge(r):
+                name, color = RANK_BINS[rank_bin(r)]
+                ink = "#fff" if rank_bin(r) < 2 else "#1d2127"
+                return f'<span class="rank" style="background:{color};color:{ink}" title="{e(name)}">{rank_text(r)}</span>'
+            from .rag import detect_language
+            langs = eval_df["nyelv_kod"] if "nyelv_kod" in eval_df else [detect_language(str(q)) for q in eval_df["kérdés"]]
+            view = eval_df.assign(nyelv=[{"hu": "magyar", "en": "angol"}.get(l, l) for l in langs])
+            cols = ["kérdés", "nyelv", "helyezés"] + (["várt cikk"] if "várt cikk" in view else [])
+            parts.append(_table(view.rename(columns={"helyezés": "a jó cikk helye"}),
+                                [c if c != "helyezés" else "a jó cikk helye" for c in cols],
+                                formats={"a jó cikk helye": badge,
+                                         "várt cikk": lambda v: ", ".join(f'<a href="{arxiv_url(i.strip())}">{e(i.strip())}</a>'
+                                                                         for i in str(v).split(",") if i.strip())},
+                                classes={"a jó cikk helye": "num", "nyelv": "muted small"}))
+        else:
+            parts.append(_table(eval_df, list(eval_df.columns),
+                                classes={c: "num" for c in eval_df.columns if c.startswith("hit")}))
+    if scores is not None and len(scores):
+        parts.append(f'<h3>A válaszok kézi pontozása</h3><p class="lead">{SCORES_LEAD}</p>{plot(scores_figure(scores, title=False))}')
+    parts.append("</section>")
+    return "\n".join(parts)
+
+
 def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, eval_df=None, eval_summary=None,
-                 archive=None, n_show=8, archive_prefix="archiv/", map_fig=None):
+                 archive=None, n_show=8, archive_prefix="archiv/", map_fig=None, scores=None):
     """meta: dict(category, months, n_papers, downloaded, emb_model, llm_model, code_version, generated, authors, repo_url).
     archive: korábbi jelentések dátumcímkéi; archive_prefix: "archiv/" a kezdőoldalon, "" az archív oldalakon.
-    map_fig: a tématérkép (tmap.topic_map), ha van."""
+    map_fig: a tématérkép (tmap.topic_map), ha van; scores: a kézzel pontozott válaszok (evalviz.load_scores)."""
     papers = papers if papers is not None else pd.DataFrame(columns=["id", "title"])
     titles = dict(zip(papers.id.astype(str), papers.title)) if len(papers) else {}
     e = html.escape
@@ -267,12 +325,12 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
 {warn}<details><summary>Források ({len(ids)})</summary><ol class="sources">{src}</ol></details></article>""")
         sections.append(f'<section id="kerdesek"><h2>Kérdések és válaszok</h2>{"".join(cards)}</section>')
 
+    plotly_loaded = fig is not None or map_fig is not None
     if eval_df is not None and len(eval_df):
-        stats = "".join(f'<div class="stat"><span>{e(k)}</span><b>{float(v):.2f}</b></div>'
-                        for k, v in (eval_summary or {}).items())
-        sections.append(f"""<section id="kiertekeles"><h2>Kiértékelés</h2>
-<p class="lead">Hányszor van a várt cikk az első 1, 5 és 10 találat között ({len(eval_df)} tesztkérdés, <code>eval/kerdesek.csv</code>).</p>
-<div class="stats">{stats}</div>{_table(eval_df, list(eval_df.columns), classes={c: "num" for c in eval_df.columns if c.startswith("hit")})}</section>""")
+        sections.append(_eval_section(eval_df, eval_summary, scores, plotly_loaded))
+        plotly_loaded = True
+    elif scores is not None and len(scores):
+        sections.append(_eval_section(None, None, scores, plotly_loaded))
 
     if archive:
         links = "".join(f'<li><a href="{archive_prefix}{e(a)}.html">{e(a)}</a></li>' for a in sorted(archive, reverse=True))
@@ -318,6 +376,9 @@ td.growth {{ min-width:130px; }}
 .warn {{ color:var(--warn); font-size:.9rem; }}
 .stats {{ display:flex; gap:12px; flex-wrap:wrap; margin:0 0 14px; }}
 .stat {{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 16px; min-width:110px; }}
+.stat small {{ display:block; color:var(--muted); font-size:.75rem; }}
+section h3 {{ margin:28px 0 6px; }}
+.rank {{ display:inline-block; min-width:2.2em; padding:1px 6px; border-radius:4px; text-align:center; font-weight:600; }}
 .stat span {{ display:block; color:var(--muted); font-size:.8rem; }} .stat b {{ font-size:1.5rem; font-variant-numeric:tabular-nums; }}
 .archive {{ columns:3 180px; padding-left:1.2em; }}
 footer {{ margin-top:40px; padding:20px 16px 40px; border-top:1px solid var(--line); color:var(--muted); font-size:.85rem; }}

@@ -6,7 +6,8 @@ from .llm import generate
 from .rag import RAG, retrieve, build_prompt, check_citations, detect_language, resolve_language
 from .trends import (find_topics, topic_trends, name_topics, build_naming_prompt, parse_names,
                      trend_table, style_table, plot_trends, summarize_trends)
-from .evaluate import hit_at_k, evaluate, load_questions
+from .evaluate import hit_at_k, evaluate, first_rank, load_questions
+from .evalviz import eval_figure, eval_overview, eval_view, load_scores, overview_text, rank_bin, scores_figure
 from .report import build_report, trend_figure, md_lite
 from .tmap import map_coords, map_question, question_position, topic_map
 from .publish import publish_files, list_archive, pages_url, PublishError

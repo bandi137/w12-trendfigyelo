@@ -49,6 +49,12 @@ def test_app_report_contains_everything_and_escapes(app):
         assert part in html, part
     assert "<img src=x" not in html                        # a cikkcím nem futtatható HTML-ként (a térképen sem)
     assert html.count("cdn.plot.ly") == 1                   # a Plotly egyszer töltődik be a két grafikonhoz
+    assert "Hányadik helyen hozza a keresés" in html and 'class="rank"' in html and "az első 5 között" in html
+    assert "kézi pontozása" not in html                     # pontozás nélkül nincs ilyen ábra
+    (app.repo_dir and open(f"{app.repo_dir}/eval/qa_pontozas.csv", "w", encoding="utf-8").write(
+        "question,answer,sources,cited,invalid,pont,megjegyzes\nMi az?,a,,[],[],4,HU01: Jó.\n"))
+    with_scores = app.build_html()
+    assert "A válaszok kézi pontozása" in with_scores and with_scores.count("cdn.plot.ly") == 1
     assert 'href="2026-11-12.html"' in app.build_html(archive=["2026-11-12"], archive_prefix="")
     assert app.preview().endswith("jelentes_elonezet.html")
 
