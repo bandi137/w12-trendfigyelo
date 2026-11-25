@@ -11,6 +11,8 @@ from datetime import datetime
 
 import pandas as pd
 
+from .trends import growth_note
+
 ARXIV_REF = re.compile(r"\[(\d{4}\.\d{4,5})\]")
 PALETTE = ["#2a6fdb", "#e0663a", "#2e9e6b", "#a64ca6", "#c9a227", "#3aa5c4", "#d1495b", "#6b7a8f"]
 
@@ -78,7 +80,7 @@ def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
 
     A legjobb N_HIGHLIGHT téma színes és vastag (mögötte halványan a nyers havi érték), a többi halványszürke;
     a nevek a vonalak végén állnak (nincs külön jelmagyarázat); az első és az utolsó `window` hónap sávval jelölve,
-    mert a növekedés ezek átlagának hányadosa. A vonalak 2 havi mozgóátlagok.
+    mert a növekedés ezek simított átlagának hányadosa (trends.growth_note). A vonalak 2 havi mozgóátlagok.
     Keskeny képernyőn (a jelentésben, TREND_SCRIPT) a vonalvégi nevek helyett jelmagyarázat jelenik meg alul."""
     import plotly.graph_objects as go
     top = list(topic_ids[:n])
@@ -121,8 +123,8 @@ def trend_figure(share, growth, names, topic_ids, category, n=6, window=3):
 
     fig.update_layout(
         title=dict(text=f"A leggyorsabban növő témák – arXiv {category}"
-                        "<br><sup>vonal: 2 havi mozgóátlag · pontok: havi nyers érték · a szám a növekedés "
-                        f"(utolsó {window} hó / első {window} hó)</sup>", x=0, font=dict(size=16)),
+                        f"<br><sup>vonal: 2 havi mozgóátlag · pontok: havi nyers érték · "
+                        f"{growth_note(window, short=True)}</sup>", x=0, font=dict(size=16)),
         yaxis=dict(title="A havi cikkek aránya (%)", rangemode="tozero", gridcolor="rgba(128,128,128,0.2)",
                    range=[0, ymax * 1.15], zeroline=False),
         xaxis=dict(type="category", tickangle=-45, showgrid=False, range=[-0.5, len(months) - 0.5]),
@@ -277,8 +279,8 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
     sections.append(f"""
 <section id="trendek">
   <h2>Leggyorsabban növő témák</h2>
-  <p class="lead">A témákat a cikkek vektorainak csoportosítása adja; a növekedés az utolsó 3 hónap részaránya osztva
-  az első 3 hónapéval. A neveket és a leírásokat nyelvi modell adta a kulcsszavak és a cikkcímek alapján.{sample_note}</p>
+  <p class="lead">A témákat a cikkek vektorainak csoportosítása adja. {growth_note()} A neveket és a leírásokat
+  nyelvi modell adta a kulcsszavak és a cikkcímek alapján.{sample_note}</p>
   <div class="chart">{chart}</div>
   {_table(top, ["név", "leírás", "kulcsszavak", "cikkek", "növekedés"],
           formats={"név": lambda v: f"<strong>{e(str(v))}</strong>", "növekedés": _growth_cell(float(top["növekedés"].max() or 1))},
@@ -301,8 +303,8 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
   <h2>Tématérkép</h2>
   <p class="lead">Minden pont egy cikk. A cikkek vektorait a UMAP-módszer vetíti síkba, így a hasonló tartalmú
   cikkek egymás mellé kerülnek, és a témák egymásba folynak. Hogy a témák kivehetők legyenek, a cikkek a témájuk
-  közepe felé húzódnak, a foltok pedig kissé széthúzódnak (ez csak a megjelenítést érinti). A szín a téma növekedése:
-  piros, ha a részaránya nőtt, kék, ha csökkent. A csúszkával egy hónap cikkei emelhetők ki, a lejátszás végigléptet
+  közepe felé húzódnak, a foltok pedig kissé széthúzódnak (ez csak a megjelenítést érinti). A szín a téma növekedése
+  (ugyanaz a simított mutató, mint a trendeknél): piros, ha a részaránya nőtt, kék, ha csökkent. A csúszkával egy hónap cikkei emelhetők ki, a lejátszás végigléptet
   a hónapokon. Egy pontra mutatva látszik a cikk címe, kattintásra megnyílik az arXivon.
   {q_text}A tengelyeknek nincs jelentése és mértékegysége: a UMAP a {dim_text}vektorokat úgy vetíti két
   dimenzióra, hogy a szomszédságok megmaradjanak. A közelség hasonlóságot jelent; a távoli foltok közti távolság nem mérőszám.</p>

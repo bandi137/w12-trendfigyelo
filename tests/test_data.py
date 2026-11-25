@@ -147,7 +147,17 @@ def test_report_states_monthly_sample():
     assert "legfeljebb" not in tf.build_report({k: v for k, v in meta.items() if k != "per_month"}, table)
     daily = tf.build_report({**meta, "per_month": 3000, "sampling": "napi"}, table)
     assert "legfeljebb 3000 cikk szerepel, a hónap minden napjáról" in daily and "utolsó napjain" not in daily
+    assert "0,5 százalékpontot adunk (simítás)" in daily and "1 %-ról 10 %-ra nőve 7×, nem 10×" in daily
     assert "utolsó napjain" in tf.build_report({**meta, "sampling": "honap_vege"}, table)
+
+
+def test_growth_note_matches_formula():
+    import pandas as pd
+    months = ["2026-01"] * 100 + ["2026-02"] * 100
+    labels = [0] * 1 + [1] * 99 + [0] * 10 + [1] * 90           # a 0. téma: 1 % → 10 %
+    _, growth = tf.topic_trends(pd.Series(months), pd.Series(labels), window=1)
+    assert round(float(growth[0]), 2) == 7.0                    # amit a leírás példája állít
+    assert "7×, nem 10×" in tf.trends.growth_note(1) and "+0,5 sz.pont" in tf.trends.growth_note(3, short=True)
 
 
 def test_per_month_limit_from_meta(tmp_path):

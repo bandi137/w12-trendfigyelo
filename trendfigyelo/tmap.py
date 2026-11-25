@@ -349,7 +349,7 @@ def topic_map(coords, df, names, growth, category, n_highlight=3, height=None, w
         title=dict(text=f"Tématérkép – arXiv {category}, {len(df)} cikk"
                         + (f" (a képen {len(shown)} pont, véletlen minta)" if len(shown) < len(df) else "") +
                         "<br><sup>minden pont egy cikk, a hasonló cikkek egymás mellett; a cikkek a témájuk közepe felé húzva · "
-                        "szín: a téma növekedése (utolsó 3 hó / első 3 hó)</sup>", x=0, font=dict(size=16)),
+                        "szín: a téma növekedése (utolsó 3 hó / első 3 hó részaránya, simítva)</sup>", x=0, font=dict(size=16)),
         xaxis=dict(visible=False, range=[lo, hi]),
         yaxis=dict(visible=False, range=[y0, y1],
                    scaleanchor="x", scaleratio=1),                    # a szigetek alakja minden szélességen megmarad

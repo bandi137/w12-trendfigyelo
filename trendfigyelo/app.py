@@ -13,7 +13,7 @@ from .evalviz import eval_figure, eval_view, load_scores, overview_text, scores_
 from .data import download_dates, per_month_limit, sampling_of
 from .publish import PublishError, list_archive, pages_url, publish_files
 from .tmap import PULL, map_coords, map_question, topic_map
-from .trends import find_topics, name_topics, summarize_trends, topic_trends, trend_table
+from .trends import find_topics, growth_note, name_topics, summarize_trends, topic_trends, trend_table
 
 LANG_CHOICES = {"automatikus": None, "magyar": "hu", "angol": "en"}   # a felület választója → rag.ask(lang=)
 
@@ -289,6 +289,8 @@ class TrendApp:
                      "5–30 másodperc).")
 
             with gr.Tab("Trendek"):
+                gr.Markdown("A témákat a cikkek vektorainak csoportosítása adja, a nevüket és a leírásukat nyelvi "
+                            "modell írja. " + growth_note())
                 with gr.Row():
                     nt0, ns0 = int(self.s["n_topics"]), int(self.s["n_show"])
                     n_topics = gr.Slider(min(5, nt0), max(40, nt0), value=nt0, step=1, label="Témák száma")

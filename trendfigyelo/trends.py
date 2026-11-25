@@ -43,11 +43,28 @@ def find_topics(emb, texts, n_topics=25, seed=42, n_keywords=6, min_df=5, max_df
     return labels, keywords
 
 
+GROWTH_SMOOTHING = 0.005   # 0,5 százalékpont: ennyit ad a mutató mindkét részarányhoz (lásd growth_note)
+
+
+def growth_note(window=3, short=False):
+    """A növekedési mutató pontos leírása a jelentéshez, a felülethez és a grafikonokhoz (egy helyen, hogy
+    mindenhol ugyanaz álljon). short=True: egysoros változat a grafikonok alcímébe."""
+    pp = f"{GROWTH_SMOOTHING * 100:.1f}".replace(".", ",")
+    if short:
+        return f"a szám a növekedés: utolsó {window} hó / első {window} hó átlagos részaránya, mindkettő +{pp} sz.pont"
+    example = (0.10 + GROWTH_SMOOTHING) / (0.01 + GROWTH_SMOOTHING)
+    return (f"A növekedés a téma részarányának változása: az utolsó {window} hónap átlagos részaránya osztva az első "
+            f"{window} hónapéval, de mindkettőhöz {pp} százalékpontot adunk (simítás), hogy a kezdetben szinte üres, "
+            f"kis témák ne kapjanak irreálisan nagy értéket. Ezért a kijelzett érték kisebb az egyszerű hányadosnál: "
+            f"1 %-ról 10 %-ra nőve {example:.0f}×, nem 10×. Az 1× változatlan, az 1 alatti érték csökkenő részarányt jelent.")
+
+
 def topic_trends(months, labels, window=3):
-    """Havi részarány témánként + növekedés: utolsó `window` hónap átlaga / első `window` hónap átlaga."""
+    """Havi részarány témánként + növekedés: (utolsó `window` hónap átlaga + simítás) / (első `window` hónap
+    átlaga + simítás), a simítás GROWTH_SMOOTHING (0,5 százalékpont) – lásd growth_note."""
     share = pd.crosstab(months, labels, normalize="index").sort_index()
     first, last = share.iloc[:window].mean(), share.iloc[-window:].mean()
-    growth = ((last + 0.005) / (first + 0.005)).sort_values(ascending=False)
+    growth = ((last + GROWTH_SMOOTHING) / (first + GROWTH_SMOOTHING)).sort_values(ascending=False)
     return share, growth
 
 
@@ -185,7 +202,7 @@ def plot_trends(share, growth, names, topic_ids, category, path=None, n=6, windo
     """A leggyorsabban növő n téma havi részaránya (a webes jelentés grafikonjának álló változata).
 
     A legjobb 3 téma színes és vastag (mögötte halványan a nyers havi érték), a többi halványszürke; a nevek a
-    vonalak végén állnak; az első és az utolsó `window` hónap sávval jelölve (a növekedés ezek átlagának hányadosa)."""
+    vonalak végén állnak; az első és az utolsó `window` hónap sávval jelölve (a növekedés ezek simított átlagának hányadosa, growth_note)."""
     import matplotlib.pyplot as plt
     from .report import GREY, N_HIGHLIGHT, PALETTE, short_name, spread_labels
     top = list(topic_ids[:n])
@@ -211,8 +228,8 @@ def plot_trends(share, growth, names, topic_ids, category, path=None, n=6, windo
                     textcoords="offset points", va="center", fontsize=10 if strong else 9,
                     fontweight="bold" if strong else "normal", color=PALETTE[rank] if strong else "#666")
     ax.set_title(f"A leggyorsabban növő témák – arXiv {category}", fontsize=14, loc="left", pad=22)
-    ax.text(0, 1.015, f"vonal: 2 havi mozgóátlag · pontok: havi nyers érték · a szám a növekedés "
-                      f"(utolsó {window} hó / első {window} hó)", transform=ax.transAxes, fontsize=9, color="#666")
+    ax.text(0, 1.015, f"vonal: 2 havi mozgóátlag · pontok: havi nyers érték · {growth_note(window, short=True)}",
+            transform=ax.transAxes, fontsize=9, color="#666")
     ax.set_xticks(x)
     ax.set_xticklabels(list(smooth.index), rotation=45, ha="right")
     ax.set_xlim(-0.5, len(x) - 0.5)

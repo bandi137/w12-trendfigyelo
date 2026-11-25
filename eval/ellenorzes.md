@@ -20,7 +20,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
 | E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | |
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `55 passed` (a figyelmeztetések nem számítanak). | |
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `56 passed` (a figyelmeztetések nem számítanak). | |
 | E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | |
 
 ### 1.2. A felület védelme
@@ -57,6 +57,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 |---|---|---|---|
 | R1 | „Témák számítása”, majd „Összefoglaló írása”. | Mindkettőnél „⏳ …” gomb és várakozó üzenet, a végén visszaáll. | |
 | R3 | Nézd meg az 5. szakasz és a Trendek fül táblázatát. | Minden témának van „leírás”-a (egy mondat). Ha nincs, a notebook kiírja: „⚠ … témánál nincs leírás…”; ekkor a Drive-on a `valasz_temanevek.txt` tartalmát másold a 4. pontba. | |
+| R4 | Olvasd el a Trendek fül és a közzétett jelentés Trendek részének bevezetőjét, és a grafikon alcímét. | A növekedés leírása kiírja a 0,5 százalékpontos simítást és a példát (1 % → 10 %: 7×, nem 10×). | |
 | R2 | Olvasd el az összefoglalót. | Ismert hiba (nyitott): minőségi, ok-okozati állításokat tehet („olcsóbbá, okosabbá”). Ha ilyet látsz, másold ide. | |
 
 ### 1.5b. Kiértékelés fül
@@ -110,7 +111,7 @@ Mindkettő a régi, havi 400 cikkes minta volt, amely csak a hónap utolsó napj
 
 A [dokumentáció 6. pontja](../W12_DOCUMENTATION.md#6-ismert-hibák-szükséges-módosítások-és-továbbfejlesztési-lehetőségek) szerint (2026. november 24.):
 
-- **Növekedési mutató leírása.** A képlet mindkét részarányhoz 0,5 százalékpontot ad (simítás); a jelentés és a grafikon ezt nem írja ki.
+- ~~**Növekedési mutató leírása.**~~ **Javítva (november 25.):** a jelentés Trendek része, a felület Trendek füle és a notebook 5. szakasza kiírja a simítást (mindkét részarány +0,5 százalékpont), példával: 1 %-ról 10 %-ra nőve 7×, nem 10×. A grafikon alcíme is jelzi. Ellenőrzés: R4.
 - **Óvatosabb összefoglaló.** A `SUMMARY_PROMPT` csak a mért részarány-változásokról kérjen szöveget, minőségi és ok-okozati állítások nélkül.
 - **Futásrekord.** Kódverzió, modellek, beállítások és az adatok ellenőrzőösszege a jelentés fejlécében és egy `futas.json`-ban.
 - **Hivatkozás-ellenőrzés.** A forrással alá nem támasztott állítás jelzése (most csak az ismeretlen azonosítót és a hivatkozás nélküli választ jelzi).
