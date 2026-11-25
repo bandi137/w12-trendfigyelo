@@ -123,4 +123,5 @@ A [dokumentáció 6. pontja](../W12_DOCUMENTATION.md#6-ismert-hibák-szükséges
 
 | Dátum | Hol | Mit tapasztaltál | Javaslat |
 |---|---|---|---|
+| 2026-11-25 | `trendfigyelo/tmap.py`, `_fingerprint()` – a térkép-gyorsítótár | A gyorsítótár ellenőrzése a teljes vektorállományt, a cikkazonosítókat, a vetítési módszert és az UMAP-paramétereket figyeli, a véletlen kezdőértéket (`seed`) azonban nem. Más `seed` mellett a program a korábban kiszámított térképet töltheti be. Prioritás: alacsony, az alapbeállításokkal nem okoz hibát. | A `seed` kerüljön az ellenőrző adatok közé. **Javítva (november 25.):** a `seed` a `terkep.json`-ba kerül, eltérés esetén a térkép újraszámolódik; a korábbi, `seed` nélküli tárolás az alapértékkel (42) készültnek számít, ezért nem számolódik újra feleslegesen. Teszt: `test_map_coords_cached_and_recomputed`. |
 | | | | |

@@ -1,4 +1,5 @@
 """A webes felület, a HTML-jelentés és a közzététel tesztjei (hálózat és Colab nélkül)."""
+import json
 import re
 import types
 
@@ -181,7 +182,7 @@ def test_launch_requires_password_when_secret_set(app, monkeypatch):
     assert not seen
 
 
-def test_map_coords_cached_and_recomputed(corpus, tmp_path):  # noqa: F811
+def test_map_coords_cached_and_recomputed(corpus, tmp_path, capsys):  # noqa: F811
     df, emb, _ = corpus
     xy = tf.map_coords(emb, df.id, str(tmp_path), method="tsne")
     assert xy.shape == (len(df), 2) and abs(xy.mean()) < 1e-6
@@ -193,6 +194,16 @@ def test_map_coords_cached_and_recomputed(corpus, tmp_path):  # noqa: F811
     assert other.shape == (len(df) - 1, 2) and other.any()
     labels = df.true.astype("category").cat.codes.to_numpy()                 # a témák nem számítanak: betöltés
     assert np.array_equal(tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), labels=labels[:-1], method="tsne"), other)
+    capsys.readouterr()
+    reseeded = tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), method="tsne", seed=7)
+    assert "számítása" in capsys.readouterr().out                             # más seed: újraszámolja
+    meta = tmp_path / "terkep.json"
+    old = json.loads(meta.read_text(encoding="utf-8"))
+    assert old["seed"] == 7
+    old.pop("seed")                                                            # régi tárolás, seed nélkül:
+    meta.write_text(json.dumps(old), encoding="utf-8")                         # az alapértékkel készültnek számít
+    assert np.array_equal(tf.map_coords(emb[:-1], df.id[:-1], str(tmp_path), method="tsne"), reseeded)
+    assert "betöltve" in capsys.readouterr().out                               # nem számolta újra
 
 
 def test_display_sample_keeps_monthly_shares():

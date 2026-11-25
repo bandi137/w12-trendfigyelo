@@ -31,10 +31,16 @@ PULL = 0.5                       # a cikk és a témája közepe közti távols�
 UMAP_PARAMS = dict(n_neighbors=30, min_dist=0.25, metric="cosine")
 
 
-def _fingerprint(emb, ids, method):
+DEFAULT_SEED = 42
+
+
+def _fingerprint(emb, ids, method, seed=DEFAULT_SEED):
+    """A tárolt térkép ellenőrző adatai: minden, ami a koordinátákat meghatározza (vektorok, cikklista,
+    módszer, paraméterek, véletlen kezdőérték)."""
     h = hashlib.sha1(np.ascontiguousarray(emb, dtype=np.float32).tobytes())     # a teljes vektor (nem csak az eleje)
     h.update("\n".join(map(str, ids)).encode())
-    return dict(method=method, params=UMAP_PARAMS if method == "umap" else {}, n=int(len(emb)), sha1_full=h.hexdigest())
+    return dict(method=method, params=UMAP_PARAMS if method == "umap" else {}, seed=int(seed), n=int(len(emb)),
+                sha1_full=h.hexdigest())
 
 
 def _project(emb, method, seed):
@@ -52,10 +58,10 @@ def _project(emb, method, seed):
                 random_state=seed).fit_transform(x)
 
 
-def map_coords(emb, ids, data_dir=None, labels=None, method="auto", seed=42):
+def map_coords(emb, ids, data_dir=None, labels=None, method="auto", seed=DEFAULT_SEED):
     """2D koordináták a cikkekhez (cikk × 2), felügyelet nélküli UMAP-pal (ha nincs telepítve: t-SNE).
     Ha `data_dir` meg van adva, a Drive-on tárolja (terkep.npy + terkep.json), és csak akkor számol újra, ha a
-    vektorok, a cikklista vagy a módszer változott; a témák változása nem számít (a témák csak a megjelenítést
+    vektorok, a cikklista, a módszer, a paraméterek vagy a véletlen kezdőérték (seed) változott; a témák változása nem számít (a témák csak a megjelenítést
     alakítják). `labels`: nem használt, csak a régebbi notebook-cellák miatt fogadja el."""
     if method == "auto":
         try:
@@ -63,10 +69,12 @@ def map_coords(emb, ids, data_dir=None, labels=None, method="auto", seed=42):
             method = "umap"
         except ImportError:
             method = "tsne"
-    want = _fingerprint(np.asarray(emb), list(ids), method)
+    want = _fingerprint(np.asarray(emb), list(ids), method, seed)
     if data_dir:
         path, meta_path = os.path.join(data_dir, "terkep.npy"), os.path.join(data_dir, "terkep.json")
         have = json.load(open(meta_path, encoding="utf-8")) if os.path.exists(meta_path) else None
+        if have is not None and "seed" not in have:      # a november 25. előtti tárolás mindig az alapértékkel készült
+            have = dict(have, seed=DEFAULT_SEED)
         if have == want and os.path.exists(path):
             print("Térkép-koordináták betöltve a Drive-ról")
             return np.load(path)
