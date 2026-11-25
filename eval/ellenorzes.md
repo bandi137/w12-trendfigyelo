@@ -20,7 +20,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
 | E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | |
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `52 passed` (a figyelmeztetések nem számítanak). | |
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `54 passed` (a figyelmeztetések nem számítanak). | |
 | E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | |
 
 ### 1.2. A felület védelme
@@ -56,6 +56,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
 | R1 | „Témák számítása”, majd „Összefoglaló írása”. | Mindkettőnél „⏳ …” gomb és várakozó üzenet, a végén visszaáll. | |
+| R3 | Nézd meg az 5. szakasz és a Trendek fül táblázatát. | Minden témának van „leírás”-a (egy mondat). Ha nincs, a notebook kiírja: „⚠ … témánál nincs leírás…”; ekkor a Drive-on a `valasz_temanevek.txt` tartalmát másold a 4. pontba. | |
 | R2 | Olvasd el az összefoglalót. | Ismert hiba (nyitott): minőségi, ok-okozati állításokat tehet („olcsóbbá, okosabbá”). Ha ilyet látsz, másold ide. | |
 
 ### 1.6. A közzétett jelentés (a Közzététel fül után, https://bandi137.github.io/w12-trendfigyelo/)

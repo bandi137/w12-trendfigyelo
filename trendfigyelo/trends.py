@@ -61,26 +61,71 @@ def build_naming_prompt(topic_ids, keywords, examples, cat):
     return NAMING_PROMPT.format(cat=cat, topics="\n\n".join(blocks))
 
 
+NAME_KEYS = ("nev", "név", "name", "cim", "cím", "title")
+DESC_KEYS = ("leiras", "leírás", "leirás", "leíras", "description", "desc", "magyarazat", "magyarázat",
+             "explanation", "summary", "osszefoglalo", "összefoglaló")
+ID_KEYS = ("tema", "téma", "topic", "id", "szam", "szám", "tema_szama", "téma száma", "topic_id")
+
+
+def _text(v):
+    return v.strip() if isinstance(v, str) else ""
+
+
+def _pick(item, keys):
+    """Az első nem üres szöveges érték a megadott kulcsok közül (kis- és nagybetű, ékezet szerinti változatok)."""
+    low = {str(k).strip().lower(): v for k, v in item.items()}
+    for k in keys:
+        if _text(low.get(k)):
+            return _text(low[k])
+    return ""
+
+
+def _topic_items(data):
+    """A modell válaszából téma → elem szótár, a kért formától eltérő, de egyértelmű alakokból is:
+    {"3": {...}}, {"Téma 3": {...}}, [{"tema": 3, ...}], {"temak": {...}} vagy {"topics": [...]}."""
+    if isinstance(data, list):
+        out = {}
+        for el in data:
+            if isinstance(el, dict):
+                low = {str(k).strip().lower(): v for k, v in el.items()}
+                tid = next((low[k] for k in ID_KEYS if k in low), None)
+                m = re.search(r"\d+", str(tid)) if tid is not None else None
+                if m:
+                    out[m.group(0)] = el
+        return out
+    if not isinstance(data, dict):
+        return {}
+    keyed = {}
+    for k, v in data.items():
+        m = re.fullmatch(r"\D*?(\d+)\D*", str(k))
+        if m and isinstance(v, (dict, str)):
+            keyed[m.group(1)] = v
+    if keyed:
+        return keyed
+    if len(data) == 1:                                              # becsomagolva: {"temak": {...}} / {"topics": [...]}
+        return _topic_items(next(iter(data.values())))
+    return {}
+
+
 def parse_names(text, topic_ids, keywords):
-    """A modell JSON-válaszának feldolgozása. Ha a válasz nem szótár, egy téma hiányzik, vagy a név/leírás nem szöveg
-    (pl. szám, lista), az első kulcsszó lesz a név, a leírás üres – kivétel helyett."""
-    m = re.search(r"\{.*\}", text or "", re.S)
+    """A modell JSON-válaszának feldolgozása. A kért alak {"<szám>": {"nev": ..., "leiras": ...}}, de az egyértelmű
+    eltéréseket is elfogadja (ékezetes vagy angol kulcs, lista, becsomagolt szótár, csak név szövegként).
+    Ha egy témához nincs használható név, az első kulcsszó lesz a név; hiányzó leírásnál a leírás üres – kivétel helyett."""
+    m = re.search(r"[\[{].*[\]}]", text or "", re.S)
     try:
         data = json.loads(m.group(0)) if m else {}
     except json.JSONDecodeError:
         data = {}
-    if not isinstance(data, dict):
-        data = {}
-
-    def text_of(v):
-        return v.strip() if isinstance(v, str) else ""
+    items = _topic_items(data)
 
     out = {}
     for t in topic_ids:
-        item = data.get(str(t))
+        item = items.get(str(t))
+        if isinstance(item, str):
+            item = {"nev": item}
         item = item if isinstance(item, dict) else {}
-        out[t] = {"nev": text_of(item.get("nev")) or keywords[t].split(", ")[0].strip(),
-                  "leiras": text_of(item.get("leiras"))}
+        out[t] = {"nev": _pick(item, NAME_KEYS) or keywords[t].split(", ")[0].strip(),
+                  "leiras": _pick(item, DESC_KEYS)}
     return out
 
 
@@ -90,13 +135,21 @@ def name_topics(llm, model, df, keywords, topic_ids, category, data_dir, n_examp
     path = os.path.join(data_dir, "temanevek.json")
     kw_now = {str(t): keywords[t] for t in topic_ids}
     cache = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
-    if cache.get("keywords") == kw_now:
+    complete = all(_text(v.get("leiras")) for v in cache.get("names", {}).values())
+    if cache.get("keywords") == kw_now and complete:
         print("Témanevek betöltve a Drive-ról")
         return {int(k): v for k, v in cache["names"].items()}
     examples = {t: df[df.topic == t].sort_values("published", ascending=False).title.head(n_examples).tolist()
                 for t in topic_ids}
     prompt = build_naming_prompt(topic_ids, keywords, examples, category)
-    names = parse_names(generate(llm, model, prompt, json_output=True, temperature=0.2), topic_ids, keywords)
+    raw = generate(llm, model, prompt, json_output=True, temperature=0.2)
+    with open(os.path.join(data_dir, "valasz_temanevek.txt"), "w", encoding="utf-8") as f:
+        f.write(raw)  # a modell nyers válasza, hibakereséshez
+    names = parse_names(raw, topic_ids, keywords)
+    missing = [t for t in topic_ids if not names[t]["leiras"]]
+    if missing:
+        print(f"⚠ {len(missing)} témánál nincs leírás a modell válaszában (a nyers válasz: valasz_temanevek.txt). "
+              "A következő futás újra megkérdezi a modellt.")
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"keywords": kw_now, "names": {str(t): v for t, v in names.items()}}, f, ensure_ascii=False, indent=1)
     with open(os.path.join(data_dir, "prompt_temanevek.txt"), "w", encoding="utf-8") as f:

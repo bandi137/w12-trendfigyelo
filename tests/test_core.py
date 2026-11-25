@@ -139,7 +139,7 @@ def test_naming_cache_table_plot_summary(corpus, tmp_path):
     assert names[ids[-1]]["nev"] == keywords[ids[-1]].split(", ")[0]   # kihagyott téma -> tartalék név
     n_calls = len(llm.calls)
     tf.name_topics(llm, "fake", df, keywords, ids, "cs.CL", str(tmp_path))
-    assert len(llm.calls) == n_calls                                   # másodszor a gyorsítótárból
+    assert len(llm.calls) == n_calls + 1                               # hiányos eredménynél újra kérdez
     table = tf.trend_table(df, ids, names, keywords, growth)
     assert list(table.columns) == ["topic", "név", "leírás", "kulcsszavak", "cikkek", "növekedés"]
     assert table.cikkek.sum() == len(df)
@@ -158,12 +158,50 @@ def test_parse_names_robust():
 
 def test_parse_names_wrong_types_fall_back():
     kw = {0: "agent, tool", 1: "speech, asr"}
-    for bad in ('["nem szótár"]', '"csak szöveg"', '{"0": "szöveg a szótár helyett", "1": 5}',
+    for bad in ('["nem szótár"]', '"csak szöveg"', '{"0": ["lista a szótár helyett"], "1": 5}',
                 '{"0": {"nev": 42, "leiras": ["lista"]}, "1": {"nev": null}}', '{"0": {"nev": "  "}}'):
         out = tf.parse_names(bad, [0, 1], kw)                    # kivétel helyett tartalék név
         assert out[0] == {"nev": "agent", "leiras": ""} and out[1]["nev"] == "speech", bad
     ok = tf.parse_names('{"0": {"nev": "Ágensek", "leiras": 7}, "1": {"nev": "Beszéd", "leiras": "jó"}}', [0, 1], kw)
     assert ok[0] == {"nev": "Ágensek", "leiras": ""} and ok[1] == {"nev": "Beszéd", "leiras": "jó"}
+
+
+def test_parse_names_accepts_variant_shapes():
+    kw = {0: "agent, tool", 1: "speech, asr"}
+    want = {0: {"nev": "Ágensek", "leiras": "Eszközt használó modellek."}, 1: {"nev": "Beszéd", "leiras": "ASR."}}
+    for text in (
+        '{"0": {"név": "Ágensek", "leírás": "Eszközt használó modellek."}, "1": {"Nev": "Beszéd", "Leiras": "ASR."}}',
+        '{"0": {"name": "Ágensek", "description": "Eszközt használó modellek."}, "1": {"nev": "Beszéd", "leiras": "ASR."}}',
+        '{"Téma 0": {"nev": "Ágensek", "leiras": "Eszközt használó modellek."}, "Téma 1": {"nev": "Beszéd", "leiras": "ASR."}}',
+        '[{"tema": 0, "nev": "Ágensek", "leiras": "Eszközt használó modellek."}, {"téma": "1", "nev": "Beszéd", "leiras": "ASR."}]',
+        '{"temak": {"0": {"nev": "Ágensek", "leiras": "Eszközt használó modellek."}, "1": {"nev": "Beszéd", "leiras": "ASR."}}}',
+        '{"topics": [{"id": 0, "nev": "Ágensek", "leiras": "Eszközt használó modellek."}, {"id": 1, "nev": "Beszéd", "leiras": "ASR."}]}',
+    ):
+        assert tf.parse_names(text, [0, 1], kw) == want, text
+    assert tf.parse_names('{"0": "Ágensek"}', [0, 1], kw)[0] == {"nev": "Ágensek", "leiras": ""}
+
+
+def test_naming_retries_when_descriptions_missing(corpus, tmp_path):
+    df, emb, _ = corpus
+    df = df.copy()
+    df["topic"], keywords = tf.find_topics(emb, (df.title + ". " + df.abstract).values, n_topics=2)
+    ids = [0, 1]
+
+    class LLM:
+        def __init__(self, text):
+            self.models, self.text, self.calls = self, text, 0
+
+        def generate_content(self, model, contents, config=None):
+            self.calls += 1
+            return types.SimpleNamespace(text=self.text)
+    bad = LLM('{"0": {"nev": "A"}, "1": {"nev": "B"}}')
+    assert tf.name_topics(bad, "fake", df, keywords, ids, "cs.CL", str(tmp_path))[0]["leiras"] == ""
+    assert (tmp_path / "valasz_temanevek.txt").read_text(encoding="utf-8") == bad.text
+    good = LLM('{"0": {"nev": "A", "leiras": "a"}, "1": {"nev": "B", "leiras": "b"}}')
+    assert tf.name_topics(good, "fake", df, keywords, ids, "cs.CL", str(tmp_path))[1]["leiras"] == "b"
+    assert good.calls == 1                                              # a leírás nélküli tárolt nevek nem számítanak
+    tf.name_topics(good, "fake", df, keywords, ids, "cs.CL", str(tmp_path))
+    assert good.calls == 1                                              # a teljes eredmény már a Drive-ról jön
 
 
 def test_evaluate(corpus):
