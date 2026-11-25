@@ -20,7 +20,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
 | E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | |
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `61 passed` (a figyelmeztetések nem számítanak). | |
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `63 passed` (a figyelmeztetések nem számítanak). | |
 | E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | |
 
 ### 1.2. A felület védelme
@@ -78,6 +78,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | P1 | Tegyél fel néhány kérdést (köztük egy próbakérdést), majd nyisd meg a Közzététel fület. | Minden kérdés jelölőnégyzettel, alapból kijelölve; mellette „notebook” vagy „felület”, és a hivatkozás-ellenőrzés eredménye (✅ ⚠️ ❌). A „Mind” és az „Egyik sem” gomb működik. | |
 | P2 | Vedd ki a próbakérdést, és kérj előnézetet. | A letöltött jelentésben és a tématérkép kérdésmenüjében a próbakérdés nincs benne. Ha utána új kérdést teszel fel, az a listában alapból kijelölt, a kivett próbakérdés kivéve marad. | |
 | P3 | Tegyél közzé kétszer egymás után (legalább egy perc különbséggel). | Az üzenet kiírja a kérdés–válaszok számát és az archív oldal nevét (pl. `2026-11-25_1712`). A jelentés „Korábbi jelentések” listájában mindkettő szerepel („2026-11-25 17:12”, „2026-11-25 17:14”), a korábbi nem íródott felül. A jelentés időpontja magyar idő. | |
+| P4 | A Közzététel fül alján: „Archív jelentések törlése” → „Archívum listázása”, jelölj ki egy régi, felesleges archív jelentést, a megerősítés nélkül próbáld törölni, majd megerősítéssel. | Megerősítés nélkül nem töröl. Utána: „🗑 Törölve: …”, commit-link. 1–2 perc múlva a weboldal archívumlistájából eltűnt, és a megmaradó archív oldalakon sincs rá link. Ha bizonytalan vagy, mit törölj, egy próba-közzététel (P3) archív példányát töröld. | |
 
 ### 1.6. A közzétett jelentés (a Közzététel fül után, https://bandi137.github.io/w12-trendfigyelo/)
 

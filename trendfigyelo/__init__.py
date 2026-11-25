@@ -11,6 +11,6 @@ from .evaluate import hit_at_k, evaluate, first_rank, load_questions
 from .evalviz import eval_figure, eval_overview, eval_view, load_scores, overview_text, rank_bin, scores_figure
 from .report import build_report, trend_figure, md_lite
 from .tmap import map_coords, map_question, question_position, topic_map
-from .publish import publish_files, list_archive, pages_url, PublishError
+from .publish import publish_files, list_archive, pages_url, PublishError, delete_archives, remove_archive_links
 from .app import TrendApp
 from . import prompts

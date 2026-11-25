@@ -124,7 +124,7 @@ class FakeGitHub:
     def _r(self, code, data=None):
         return types.SimpleNamespace(status_code=code, json=lambda: data or {}, content=b"x", text=str(data))
 
-    def get(self, url, params=None, timeout=None):
+    def get(self, url, params=None, timeout=None, headers=None):
         self.calls.append(("GET", url))
         if url.endswith("/git/ref/heads/main"):
             return self._r(200, {"object": {"sha": f"head{len(self.calls)}"}})
@@ -144,6 +144,51 @@ class FakeGitHub:
             self.conflict = False
             return self._r(422, {"message": "Update is not a fast forward"})
         return self._r(200, {})
+
+
+def _page(prefix, labels):
+    lis = "".join(f'<li><a href="{prefix}{a}.html">{tf.report.archive_title(a)}</a></li>' for a in labels)
+    return (f'<nav><a href="#trendek">Trendek</a><a href="#archiv">Archívum</a></nav>ű'
+            f'<section id="archiv"><h2>Korábbi jelentések</h2><ul class="archive">{lis}</ul></section>')
+
+
+def test_remove_archive_links():
+    page = _page("archiv/", ["2026-11-25_1712", "2026-11-24"])
+    out = tf.remove_archive_links(page, ["2026-11-24"])
+    assert "2026-11-24.html" not in out and 'archiv/2026-11-25_1712.html' in out and 'href="#archiv"' in out
+    empty = tf.remove_archive_links(out, ["2026-11-25_1712"])
+    assert 'id="archiv"' not in empty and 'href="#archiv"' not in empty and 'href="#trendek"' in empty
+
+
+def test_delete_archives_one_commit_files_and_links():
+    class GH(FakeGitHub):
+        pages = {"docs/index.html": _page("archiv/", ["2026-11-25_1712", "2026-11-24", "2026-11-12"]),
+                 "docs/archiv/2026-11-25_1712.html": _page("", ["2026-11-25_1712", "2026-11-24", "2026-11-12"]),
+                 "docs/archiv/2026-11-12.html": _page("", ["2026-11-12"])}
+
+        def get(self, url, params=None, timeout=None, headers=None):
+            if url.endswith("/contents/docs/archiv"):
+                self.calls.append(("GET", url))
+                return self._r(200, [{"name": "2026-11-12.html"}, {"name": "2026-11-24.html"},
+                                     {"name": "2026-11-25_1712.html"}])
+            path = url.split("/contents/")[-1] if "/contents/" in url else None
+            if path in self.pages:
+                self.calls.append(("GET", url))
+                assert headers and "raw" in headers["Accept"]
+                return types.SimpleNamespace(status_code=200, content=self.pages[path].encode("utf-8"), text="")
+            return super().get(url, params, timeout)
+    gh = GH()
+    res = tf.delete_archives(["2026-11-24", "2026-01-01"], "tok", "a/b", session=gh)   # a nem létezőt kihagyja
+    assert res["deleted"] == ["2026-11-24"]
+    assert res["updated"] == ["docs/archiv/2026-11-25_1712.html", "docs/index.html"]  # a 11-12-esben nem volt link
+    tree = next(c[2]["tree"] for c in gh.calls if c[0] == "POST" and c[1].endswith("/trees"))
+    deleted = [t["path"] for t in tree if "sha" in t and t["sha"] is None]
+    assert deleted == ["docs/archiv/2026-11-24.html"]
+    index = next(t["content"] for t in tree if t["path"] == "docs/index.html")
+    assert "2026-11-24" not in index and "archiv/2026-11-12.html" in index and "ű" in index   # ékezet épen marad
+    assert sum(1 for c in gh.calls if c[0] == "PATCH") == 1                                   # egy commit
+    with pytest.raises(tf.PublishError, match="Nincs törölhető"):
+        tf.delete_archives(["2099-01-01"], "tok", "a/b", session=GH())
 
 
 def test_publish_files_single_commit_and_retry_on_conflict():

@@ -4,6 +4,8 @@ A GitHub REST API-t használja (git nélkül), egy személyes hozzáférési tok
 - Repótulajdonos: finomhangolt (fine-grained) token, csak erre a repóra, Contents: Read and write.
 - Közreműködő: klasszikus token `public_repo` jogosultsággal (a finomhangolt token közreműködőként nem működik).
 """
+import re
+
 import requests
 
 API = "https://api.github.com"
@@ -43,9 +45,10 @@ def list_archive(token, repo, branch="main", folder="docs", session=None):
     return sorted(i["name"][:-5] for i in items if i.get("name", "").endswith(".html"))
 
 
-def publish_files(files, token, repo, branch="main", message="Jelentés frissítése", session=None, retries=1):
-    """files: {"docs/index.html": "<html>…", …}. Egyetlen commitot hoz létre; ha közben valaki más is
-    feltöltött, újrakezdi a legfrissebb állapotról. Visszaadja a commit adatait."""
+def publish_files(files, token, repo, branch="main", message="Jelentés frissítése", session=None, retries=1,
+                  delete=()):
+    """files: {"docs/index.html": "<html>…", …}; delete: törlendő fájlok útvonalai. Egyetlen commitot hoz létre;
+    ha közben valaki más is feltöltött, újrakezdi a legfrissebb állapotról. Visszaadja a commit adatait."""
     s = _session(token, session)
     for attempt in range(retries + 1):
         ref = _check(s.get(f"{API}/repos/{repo}/git/ref/heads/{branch}", timeout=30), "Az ág lekérése")
@@ -53,7 +56,8 @@ def publish_files(files, token, repo, branch="main", message="Jelentés frissít
         base_tree = _check(s.get(f"{API}/repos/{repo}/git/commits/{head}", timeout=30), "A commit lekérése")["tree"]["sha"]
         tree = _check(s.post(f"{API}/repos/{repo}/git/trees", timeout=60, json={
             "base_tree": base_tree,
-            "tree": [{"path": p, "mode": "100644", "type": "blob", "content": c} for p, c in files.items()]}),
+            "tree": [{"path": p, "mode": "100644", "type": "blob", "content": c} for p, c in files.items()]
+            + [{"path": p, "mode": "100644", "type": "blob", "sha": None} for p in delete]}),
             "A fájlok feltöltése")
         commit = _check(s.post(f"{API}/repos/{repo}/git/commits", timeout=30, json={
             "message": message, "tree": tree["sha"], "parents": [head]}), "A commit létrehozása")
@@ -64,3 +68,50 @@ def publish_files(files, token, repo, branch="main", message="Jelentés frissít
         return {"sha": commit["sha"], "commit_url": f"https://github.com/{repo}/commit/{commit['sha']}",
                 "pages_url": pages_url(repo)}
     raise PublishError("Az ág frissítése többszöri próbálkozásra sem sikerült.")
+
+
+def fetch_file(token, repo, path, branch="main", session=None):
+    """Egy fájl szövege a repóból (nyers tartalom, 1 MB fölött is), vagy None, ha nincs ilyen."""
+    s = _session(token, session)
+    r = s.get(f"{API}/repos/{repo}/contents/{path}", params={"ref": branch}, timeout=60,
+              headers={"Accept": "application/vnd.github.raw+json"})
+    if r.status_code == 404:
+        return None
+    if r.status_code >= 400:
+        _check(r, f"A(z) {path} letöltése")
+    return r.content.decode("utf-8")
+
+
+def remove_archive_links(page, labels):
+    """A jelentés „Korábbi jelentések” listájából kiveszi a megadott archív oldalakra mutató linkeket
+    (a kezdőoldalon "archiv/…", az archív oldalakon "…" alakúak); ha a lista kiürül, a szakasz és a menüpont is
+    kikerül."""
+    for label in labels:
+        page = re.sub(r'<li><a href="(?:archiv/)?' + re.escape(label) + r'\.html">[^<]*</a></li>', "", page)
+    if re.search(r'<ul class="archive">\s*</ul>', page):
+        page = re.sub(r'<section id="archiv">.*?</section>', "", page, flags=re.S)
+        page = page.replace('<a href="#archiv">Archívum</a>', "")
+    return page
+
+
+def delete_archives(labels, token, repo, branch="main", folder="docs", session=None):
+    """Archív jelentések törlése egyetlen commitban: a docs/archiv/<címke>.html fájlok törlése, és a kezdőoldal,
+    valamint a megmaradó archív oldalak archívumlistájából a rájuk mutató linkek eltávolítása (halott link ne
+    maradjon). A jelentések tartalmát nem számolja újra. Visszaadja a commit adatait és a törölt címkéket."""
+    existing = set(list_archive(token, repo, branch, folder, session))
+    labels = sorted(set(labels) & existing)
+    if not labels:
+        raise PublishError("Nincs törölhető archív jelentés a kijelöltek között (lehet, hogy közben már törölték).")
+    files = {}
+    pages = [f"{folder}/index.html"] + [f"{folder}/archiv/{a}.html" for a in sorted(existing - set(labels))]
+    for path in pages:
+        text = fetch_file(token, repo, path, branch, session)
+        if text is None:
+            continue
+        new = remove_archive_links(text, labels)
+        if new != text:
+            files[path] = new
+    res = publish_files(files, token, repo, branch, session=session,
+                        message=f"Archív jelentések törlése: {', '.join(labels)}",
+                        delete=[f"{folder}/archiv/{a}.html" for a in labels])
+    return {**res, "deleted": labels, "updated": sorted(files)}

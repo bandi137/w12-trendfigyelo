@@ -38,6 +38,11 @@ A finomhangolt token közreműködőként nem működik más felhasználó repó
 - Egyetlen commit kerül a `docs/` mappába: `index.html` (a legfrissebb jelentés) és `archiv/ÉÉÉÉ-HH-NN_ÓÓPP.html`
   (ennek a közzétételnek a példánya, magyar idő szerint). A commit szerzője a token tulajdonosa. Az aznapi újabb
   közzététel külön archív oldalt kap, a korábbit nem írja felül.
+- **Archív jelentés törlése:** a *Közzététel* fül alján, az *Archív jelentések törlése* részben. *Archívum listázása*,
+  a törlendők kijelölése, a megerősítő jelölőnégyzet, majd *Kijelöltek törlése*. Egy commitban törli a fájlokat, és a
+  kezdőoldal, valamint a többi archív oldal „Korábbi jelentések” listájából a rájuk mutató linkeket is kiveszi (a
+  jelentések tartalmát nem számolja újra). Ha a legutóbbi közzététel archív példányát törlöd, a kezdőoldal attól még
+  azt mutatja a következő közzétételig. A törölt fájl a git-előzményekben megmarad (a repó nyilvános).
 - A GitHub Pages 1–2 perc alatt frissül. A kód (`trendfigyelo/`, notebook) nem változik, így nincs ütközés.
 
 ## Biztonság

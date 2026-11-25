@@ -14,7 +14,7 @@ from .evaluate import evaluate, load_questions
 from .verify import as_list, claims_markdown, summary_counts
 from .evalviz import eval_figure, eval_view, load_scores, overview_text, scores_figure
 from .data import download_dates, per_month_limit, sampling_of
-from .publish import PublishError, list_archive, pages_url, publish_files
+from .publish import PublishError, delete_archives, list_archive, pages_url, publish_files
 from .tmap import PULL, map_coords, map_question, topic_map
 from .trends import find_topics, growth_note, name_topics, summarize_trends, topic_trends, trend_table
 
@@ -239,11 +239,23 @@ class TrendApp:
             f.write(self.build_html())
         return path
 
-    def publish(self):
+    def _token(self):
         token = self.token_fn()
         if not token:
             raise PublishError("Nincs GITHUB_TOKEN a Colab Secrets fülön (vagy nincs hozzá notebook-hozzáférés). "
                                "Útmutató: docs/KOZZETETEL.md a repóban.")
+        return token
+
+    def archive_list(self):
+        """A közzétett archív jelentések címkéi (újabb elöl)."""
+        return sorted(list_archive(self._token(), self.repo), reverse=True)
+
+    def delete_archives(self, labels):
+        """A kijelölt archív jelentések törlése a weboldalról (egy commit; a linkek is kikerülnek)."""
+        return delete_archives(list(labels or []), self._token(), self.repo)
+
+    def publish(self):
+        token = self._token()
         existing = set(list_archive(token, self.repo))
         label = archive_label(now_local(), existing)
         archive = sorted(existing | {label})
@@ -442,6 +454,39 @@ class TrendApp:
                             f"commit: [{r['sha'][:7]}]({r['commit_url']})")
                 busy([pub_btn.click], pub_btn, do_publish, qa_pick, status, status,
                      "Közzététel folyamatban: a jelentés elkészítése és feltöltése a GitHubra.")
+
+                with gr.Accordion("Archív jelentések törlése", open=False):
+                    gr.Markdown("A kijelölt archív jelentések lekerülnek a weboldalról, és a rájuk mutató linkek is "
+                                "kikerülnek a kezdőoldal és a többi archív oldal „Korábbi jelentések” listájából (egy "
+                                "commitban). A jelentések tartalma egyébként nem változik. A repó nyilvános, ezért a "
+                                "törölt fájl a git-előzményekben továbbra is megtalálható.")
+                    list_btn = gr.Button("Archívum listázása", size="sm", scale=0, min_width=180)
+                    arch_pick = gr.CheckboxGroup(choices=[], label="Archív jelentések (újabb elöl)")
+                    confirm = gr.Checkbox(value=False, label="Értem: a kijelölt jelentések lekerülnek a weboldalról.")
+                    del_btn = gr.Button("Kijelöltek törlése", variant="stop")
+                    del_status = gr.Markdown()
+
+                    def do_list():
+                        labels = self.archive_list()
+                        return (gr.update(choices=[(report.archive_title(a), a) for a in labels], value=[]),
+                                f"{len(labels)} archív jelentés." if labels else "Nincs archív jelentés.")
+                    busy([list_btn.click], list_btn, do_list, None, [arch_pick, del_status], del_status,
+                         "Az archívum lekérése a GitHubról.")
+
+                    def do_delete(labels, ok):
+                        if not labels:
+                            return gr.update(), "Jelölj ki legalább egy archív jelentést.", gr.update()
+                        if not ok:
+                            return gr.update(), "A törléshez jelöld be: „Értem: a kijelölt jelentések lekerülnek…”.", \
+                                gr.update()
+                        r = self.delete_archives(labels)
+                        rest = self.archive_list()
+                        return (gr.update(choices=[(report.archive_title(a), a) for a in rest], value=[]),
+                                f"🗑 Törölve: {', '.join(report.archive_title(a) for a in r['deleted'])}. "
+                                f"Frissített oldalak: {len(r['updated'])} · commit: [{r['sha'][:7]}]({r['commit_url']}). "
+                                "A weboldal 1–2 perc alatt frissül.", gr.update(value=False))
+                    busy([del_btn.click], del_btn, do_delete, [arch_pick, confirm], [arch_pick, del_status, confirm],
+                         del_status, "Törlés folyamatban: a fájlok törlése és a linkek frissítése a GitHubon.")
         return ui
 
     def launch(self, share=True, password=None, user="w12", **kwargs):
