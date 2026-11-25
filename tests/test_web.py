@@ -38,6 +38,8 @@ def test_app_ask_links_sources(app):
     md = app.ask("speech recognition audio", k=3)
     assert md.count("https://arxiv.org/abs/") >= 4          # a válaszban és a forráslistában
     assert "⚠" in md and "2601.99999" in md                 # kitalált hivatkozás jelzése
+    assert "Hivatkozások tartalmi ellenőrzése" in md and "1 alátámasztott" in md
+    assert "tartalmi ellenőrzése" not in app.ask("speech recognition audio", k=3, verify=False)
     assert app.ask("   ") == "Írj be egy kérdést."
 
 
@@ -50,6 +52,7 @@ def test_app_report_contains_everything_and_escapes(app):
         assert part in html, part
     assert "<img src=x" not in html                        # a cikkcím nem futtatható HTML-ként (a térképen sem)
     assert html.count("cdn.plot.ly") == 1                   # a Plotly egyszer töltődik be a két grafikonhoz
+    assert '<details class="claims">' in html and "1 alátámasztott" in html
     assert "Hányadik helyen hozza a keresés" in html and 'class="rank"' in html and "az első 5 között" in html
     assert "kézi pontozása" not in html                     # pontozás nélkül nincs ilyen ábra
     (app.repo_dir and open(f"{app.repo_dir}/eval/qa_pontozas.csv", "w", encoding="utf-8").write(

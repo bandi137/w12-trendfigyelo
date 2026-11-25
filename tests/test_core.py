@@ -66,6 +66,11 @@ class FakeLLM:
             ids = re.findall(r"^Téma (\d+)$", contents, re.M)
             data = {i: {"nev": f"Téma {i} (Topic {i})", "leiras": f"Leírás {i}."} for i in ids[:-1]}
             return types.SimpleNamespace(text=json.dumps(data, ensure_ascii=False))
+        if "ÁLLÍTÁSOK:" in contents:                                         # hivatkozás-ellenőrzés
+            n = len(re.findall(r"^\d+\. ", contents.split("ÁLLÍTÁSOK:")[1], re.M))
+            verdicts = [{"n": i, "itelet": "igen" if i == 1 else "nem", "indoklas": f"Indoklás {i}."}
+                        for i in range(1, n + 1)]
+            return types.SimpleNamespace(text=json.dumps(verdicts, ensure_ascii=False))
         if "CIKKEK:" not in contents:
             return types.SimpleNamespace(text="Összefoglaló.")
         hit = re.search(r"\[(\d{4}\.\d{5})\]", contents.split("CIKKEK:")[1])   # a megkapott cikkek közül
@@ -112,6 +117,56 @@ def test_rag_ask_flags_invented_citation(corpus):
     assert entry["invalid"] == ["2601.99999"]
     valid = set(entry["cited"]) - set(entry["invalid"])
     assert len(valid) == 1 and valid.pop() in entry["sources"]
+
+
+def test_split_claims_sentences_and_trailing_citations():
+    answer = ("Bevezető mondat hivatkozás nélkül. Az ágensek eszközöket hívnak [2601.00001]. "
+              "A beszédfelismerés javult. [2601.00002]\n"
+              "- Felsorolt állítás két forrással (2601.00003, 2601.00004).\n"
+              "Összegzés, hivatkozás nélkül.")
+    claims = tf.split_claims(answer)
+    assert [c["ids"] for c in claims] == [["2601.00001"], ["2601.00002"], ["2601.00003", "2601.00004"]]
+    assert [c["mondat"] for c in claims] == ["Az ágensek eszközöket hívnak.", "A beszédfelismerés javult.",
+                                             "Felsorolt állítás két forrással."]
+
+
+def test_parse_verdicts_variants_and_missing():
+    claims = [{"mondat": f"M{i}", "ids": ["2601.00001"]} for i in range(1, 5)]
+    for text in ('[{"n": 1, "itelet": "igen", "indoklas": "a"}, {"n": 2, "itelet": "Részben", "indoklas": "b"},'
+                 ' {"n": "3", "itelet": "nem támasztja alá", "indoklas": "c"}]',
+                 '{"allitasok": [{"N": 1, "ítélet": "alátámasztja", "indoklás": "a"}, {"n": 2, "verdict": "partially",'
+                 ' "reason": "b"}, {"sorszám": 3, "itelet": "nem", "indoklas": "c"}]}'):
+        out = tf.parse_verdicts(text, claims)
+        assert [c["itelet"] for c in out] == ["igen", "részben", "nem", None], text   # a 4. hiányzik: nem értékelt
+        assert out[2]["indoklas"] == "c" and out[0]["mondat"] == "M1"
+    assert [c["itelet"] for c in tf.parse_verdicts("nem JSON", claims)] == [None] * 4
+
+
+def test_rag_verifies_claims_and_can_be_switched_off(corpus, tmp_path):
+    df, emb, q = corpus
+    llm = FakeLLM()
+    rag = tf.RAG(df, emb, q, llm, "fake", top_k=3)
+    rag.ask("speech recognition audio", show=False)
+    entry = rag.log[-1]
+    assert len(llm.calls) == 2 and "ÁLLÍTÁSOK:" in llm.calls[1]           # válasz + ellenőrzés
+    assert [c["itelet"] for c in entry["claims"]] == ["igen"] and entry["verify_error"] == ""
+    assert "1 alátámasztott" in tf.claims_markdown(entry["claims"])
+    rag.save_log(str(tmp_path / "naplo.csv"))
+    import pandas as pd
+    back = pd.read_csv(tmp_path / "naplo.csv")["claims"][0]
+    assert tf.verify.as_list(back)[0]["itelet"] == "igen"                   # CSV-ből visszaolvasva is lista
+    rag.ask("speech recognition audio", show=False, verify=False)
+    assert len(llm.calls) == 3 and rag.log[-1]["claims"] == []
+
+    class Broken(FakeLLM):
+        def generate_content(self, model, contents, config=None):
+            if "ÁLLÍTÁSOK:" in contents:
+                raise ValueError("hibás kérés")
+            return super().generate_content(model, contents, config)
+    rag2 = tf.RAG(df, emb, q, Broken(), "fake", top_k=3)
+    answer = rag2.ask("speech recognition audio", show=False)                 # az ellenőrzés hibája nem viszi el
+    assert answer.startswith("Válasz") and "hibás kérés" in rag2.log[-1]["verify_error"]
+    assert "nem futott le" in tf.claims_markdown([], rag2.log[-1]["verify_error"])
 
 
 def test_topics_keywords_and_growth(corpus):

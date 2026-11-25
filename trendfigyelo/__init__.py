@@ -4,6 +4,7 @@ from .data import (day_ranges, download_dates, download_month, load_or_download,
 from .embed import Embedder, load_or_embed
 from .llm import generate
 from .rag import RAG, retrieve, build_prompt, check_citations, detect_language, resolve_language
+from .verify import claims_markdown, parse_verdicts, split_claims, verify_claims
 from .trends import (find_topics, topic_trends, name_topics, build_naming_prompt, parse_names,
                      trend_table, style_table, plot_trends, summarize_trends)
 from .evaluate import hit_at_k, evaluate, first_rank, load_questions

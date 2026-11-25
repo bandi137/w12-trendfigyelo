@@ -41,7 +41,27 @@ TÉMÁK:
 {topics}"""
 
 SUMMARY_PROMPT = """Az alábbi témák a(z) {cat} arXiv-kategóriában az utóbbi hónapokban a leggyorsabban növekvők
-(zárójelben: az utolsó 3 hónap részaránya osztva az első 3 hónapéval).
+(zárójelben a növekedés: az utolsó 3 hónap átlagos részaránya osztva az első 3 hónapéval, mindkettőhöz
+0,5 százalékpontot adva, ezért kisebb az egyszerű hányadosnál).
 Írj 4-5 mondatos, közérthető magyar összefoglalót arról, merre tart a terület. Hivatkozz a témák nevére.
 
 {topics}"""
+
+
+# A hivatkozások tartalmi ellenőrzése (verify.py): a válasz hivatkozott állításait egy második hívás veti össze
+# a hivatkozott cikkek absztraktjával. Szigorú, hogy a „részben” is jelzés legyen a felhasználónak.
+VERIFY_PROMPT = """Egy kutatási asszisztens válaszának állításait ellenőrzöd. Minden állítás mellett ott van, melyik
+arXiv-cikkre hivatkozik. Döntsd el állításonként, hogy a hivatkozott cikk(ek) alábbi absztraktja alátámasztja-e.
+
+- "igen": az absztrakt egyértelműen kimondja vagy közvetlenül következik belőle;
+- "részben": csak egy része szerepel, vagy az állítás általánosabb, erősebb, mint amit az absztrakt mond;
+- "nem": az absztrakt nem mond ilyet, ellentmond neki, vagy a hivatkozott cikk nincs a források között.
+Csak az absztraktok szövegét vedd figyelembe, a saját tudásodat ne. Az indoklás egy rövid magyar mondat legyen.
+
+Csak JSON-t adj vissza, ebben a formában: [{{"n": 1, "itelet": "igen|részben|nem", "indoklas": "..."}}, ...]
+
+FORRÁSOK:
+{sources}
+
+ÁLLÍTÁSOK:
+{claims}"""

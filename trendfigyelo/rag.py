@@ -1,4 +1,5 @@
 """Visszakeresés + válaszgenerálás forrásmegjelöléssel."""
+import json
 import re
 
 import numpy as np
@@ -6,6 +7,7 @@ import pandas as pd
 
 from .llm import generate
 from .prompts import LANGUAGE_RULES, RAG_PROMPT
+from .verify import claims_markdown, verify_claims
 
 
 def retrieve(df, emb, query_vec, k=5, month_from=None):
@@ -56,16 +58,18 @@ def check_citations(answer, hits):
 
 
 class RAG:
-    def __init__(self, df, emb, embed_query, llm, model, top_k=5):
+    def __init__(self, df, emb, embed_query, llm, model, top_k=5, verify=True):
+        """verify: a hivatkozások tartalmi ellenőrzése egy második modellhívással (verify.py)."""
         self.df, self.emb, self.embed_query = df, emb, embed_query
-        self.llm, self.model, self.top_k = llm, model, top_k
+        self.llm, self.model, self.top_k, self.verify = llm, model, top_k, verify
         self.log = []  # minden kérdés-válasz ide kerül -> dokumentációhoz
 
     def retrieve(self, question, k=None, month_from=None):
         return retrieve(self.df, self.emb, self.embed_query(question), k or self.top_k, month_from)
 
-    def ask(self, question, k=None, month_from=None, show=True, lang=None):
-        """lang: 'hu' / 'en' a válasz nyelve; None vagy 'auto': a kérdésből felismerve."""
+    def ask(self, question, k=None, month_from=None, show=True, lang=None, verify=None):
+        """lang: 'hu' / 'en' a válasz nyelve; None vagy 'auto': a kérdésből felismerve.
+        verify: a hivatkozások tartalmi ellenőrzése (None: a RAG beállítása szerint)."""
         hits = self.retrieve(question, k, month_from)
         language = resolve_language(question, lang)
         if hits.empty:                                   # üres időszak: nincs mit átadni a modellnek
@@ -75,7 +79,11 @@ class RAG:
         else:
             answer = generate(self.llm, self.model, build_prompt(question, hits, lang=lang))
         cit = check_citations(answer, hits)
-        self.log.append({"question": question, "answer": answer, "sources": ", ".join(hits.id), "lang": language, **cit})
+        claims, verify_error = [], ""
+        if (self.verify if verify is None else verify) and not hits.empty:
+            claims, verify_error = verify_claims(self.llm, self.model, answer, hits)
+        self.log.append({"question": question, "answer": answer, "sources": ", ".join(hits.id), "lang": language, **cit,
+                         "claims": claims, "verify_error": verify_error})
         if show:
             print(answer, "\n\nForrások:")
             for r in hits.itertuples():
@@ -84,8 +92,14 @@ class RAG:
                 print("⚠ Nem kapott forrásra hivatkozott:", cit["invalid"])
             if cit["uncited"]:
                 print("⚠ A válasz egyetlen átadott forrásra sem hivatkozik.")
+            check = claims_markdown(claims, verify_error)
+            if check:
+                print(check.replace("**", "").replace("_", "").strip())
         return answer
 
     def save_log(self, path):
-        pd.DataFrame(self.log).to_csv(path, index=False)
+        df = pd.DataFrame(self.log)
+        if "claims" in df:                                   # JSON-ként, hogy visszaolvasva is értelmezhető legyen
+            df["claims"] = [json.dumps(c, ensure_ascii=False) for c in df["claims"]]
+        df.to_csv(path, index=False)
         print(len(self.log), "válasz mentve:", path)

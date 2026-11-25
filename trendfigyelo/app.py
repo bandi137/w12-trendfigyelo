@@ -9,6 +9,7 @@ from datetime import datetime
 
 from . import report
 from .evaluate import evaluate, load_questions
+from .verify import claims_markdown
 from .evalviz import eval_figure, eval_view, load_scores, overview_text, scores_figure
 from .data import download_dates, per_month_limit, sampling_of
 from .publish import PublishError, list_archive, pages_url, publish_files
@@ -72,12 +73,14 @@ class TrendApp:
 
     # --- műveletek (a felülettől függetlenül is hívhatók és tesztelhetők) ---------------------------
 
-    def ask(self, question, k=None, month_from=None, lang=None):
-        """lang: 'hu' / 'en' a válasz nyelve; None vagy 'auto': a kérdésből felismerve."""
+    def ask(self, question, k=None, month_from=None, lang=None, verify=None):
+        """lang: 'hu' / 'en' a válasz nyelve; None vagy 'auto': a kérdésből felismerve.
+        verify: a hivatkozások tartalmi ellenőrzése (None: a RAG beállítása szerint)."""
         question = (question or "").strip()
         if not question:
             return "Írj be egy kérdést."
-        answer = self.rag.ask(question, k=k or self.s["top_k"], month_from=month_from or None, show=False, lang=lang)
+        answer = self.rag.ask(question, k=k or self.s["top_k"], month_from=month_from or None, show=False, lang=lang,
+                              verify=verify)
         entry = self.rag.log[-1]
         self.ui_log.append(entry)
         hits = self.df.set_index("id").loc[[i for i in entry["sources"].split(", ") if i]]
@@ -88,6 +91,7 @@ class TrendApp:
         if entry.get("uncited"):
             warn += ("\n\n> ⚠ A válasz egyetlen átadott forrásra sem hivatkozik, ezért az állításai a forrásokkal "
                      "nem ellenőrizhetők.")
+        warn += claims_markdown(entry.get("claims"), entry.get("verify_error", ""))
         sources = sources or "_A megadott időszakban nincs cikk._"
         return f"{linked}{warn}\n\n**Források**\n\n{sources}"
 
@@ -245,6 +249,10 @@ class TrendApp:
                                   label="Hány cikket kapjon a modell")
                     since = gr.Dropdown(["(mind)"] + months, value="(mind)", label="Csak ettől a hónaptól")
                     lang = gr.Radio(list(LANG_CHOICES), value="automatikus", label="Válasz nyelve")
+                check = gr.Checkbox(value=bool(getattr(self.rag, "verify", True)),
+                                    label="Hivatkozások tartalmi ellenőrzése",
+                                    info="Egy második modellhívás megnézi, hogy a hivatkozott cikk absztraktja "
+                                         "alátámasztja-e az állítást (néhány másodperccel lassabb).")
                 ask_btn = gr.Button("Kérdezek", variant="primary")
                 answer = gr.Markdown()
                 gr.Markdown("_A feltett kérdések és a forrásaik a **Tématérkép** fülön is megnézhetők._")
@@ -280,13 +288,13 @@ class TrendApp:
                 busy([map_btn.click, map_pull.release, show_q.input], map_btn, draw_map, [map_pull, show_q], map_plot,
                      map_status, "A térkép rajzolása folyamatban (elsőre a koordináták számítása 1–2 perc).")
 
-                def do_ask(qq, kk, mm, ll):
-                    text = self.ask(qq, int(kk), None if mm == "(mind)" else mm, LANG_CHOICES.get(ll))
+                def do_ask(qq, kk, mm, ll, cc):
+                    text = self.ask(qq, int(kk), None if mm == "(mind)" else mm, LANG_CHOICES.get(ll), verify=bool(cc))
                     ok = self.has_questions()
                     return text, gr.update(interactive=ok, value=ok)
-                busy([ask_btn.click, q.submit], ask_btn, do_ask, [q, k, since, lang], [answer, show_q], answer,
+                busy([ask_btn.click, q.submit], ask_btn, do_ask, [q, k, since, lang, check], [answer, show_q], answer,
                      "A források keresése és a válasz megírása folyamatban (a nyelvi modell válasza általában "
-                     "5–30 másodperc).")
+                     "5–30 másodperc, a hivatkozások ellenőrzésével valamivel több).")
 
             with gr.Tab("Trendek"):
                 gr.Markdown("A témákat a cikkek vektorainak csoportosítása adja, a nevüket és a leírásukat nyelvi "

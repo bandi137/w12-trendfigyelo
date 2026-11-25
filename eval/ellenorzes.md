@@ -20,7 +20,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
 | E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | |
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `56 passed` (a figyelmeztetések nem számítanak). | |
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `59 passed` (a figyelmeztetések nem számítanak). | |
 | E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | |
 
 ### 1.2. A felület védelme
@@ -38,6 +38,8 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | K2 | „Csak ettől a hónaptól”: **2026-10**, „Hány cikket kapjon a modell”: **10**. | Minden forrás 2026-10-es. | |
 | K3 | Angol kérdés „MI” vagy „van der Waals” szóval, a válasz nyelve **automatikus**, majd ugyanez **angol** beállítással. | Automatikusnál lehet magyar a válasz (ez az ismert korlát); „angol” választásnál angol. | |
 | K4 | Egy témán kívüli kérdés (pl. „Mi Franciaország fővárosa?”). | Ha a válasz egyetlen forrásra sem hivatkozik, figyelmeztetés jelenik meg: „A válasz egyetlen átadott forrásra sem hivatkozik…”. | |
+| K5 | Tegyél fel egy kérdést bekapcsolt „Hivatkozások tartalmi ellenőrzése” mellett. Olvasd el a választ és a hivatkozott absztraktokat (a forráslinkeken). | A válasz alatt: „Hivatkozások tartalmi ellenőrzése (N hivatkozott állítás): ✅ … · ⚠️ … · ❌ …”, alatta a részben vagy nem alátámasztott állítások indoklással. Egyetértesz-e az ítéletekkel? Az eltéréseket írd a 4. pontba (állítás, ítélet, a te véleményed). | |
+| K6 | Ugyanez kikapcsolt jelölőnégyzettel, majd a közzétett jelentés kérdés–válasz kártyái. | Kikapcsolva nincs ellenőrzés (gyorsabb). A jelentésben a kártyán lenyitható „Hivatkozások tartalmi ellenőrzése” sor; ha van gyanús állítás, piros. | |
 
 ### 1.4. Tématérkép fül
 
@@ -114,7 +116,7 @@ A [dokumentáció 6. pontja](../W12_DOCUMENTATION.md#6-ismert-hibák-szükséges
 - ~~**Növekedési mutató leírása.**~~ **Javítva (november 25.):** a jelentés Trendek része, a felület Trendek füle és a notebook 5. szakasza kiírja a simítást (mindkét részarány +0,5 százalékpont), példával: 1 %-ról 10 %-ra nőve 7×, nem 10×. A grafikon alcíme is jelzi. Ellenőrzés: R4.
 - **Óvatosabb összefoglaló.** A `SUMMARY_PROMPT` csak a mért részarány-változásokról kérjen szöveget, minőségi és ok-okozati állítások nélkül.
 - **Futásrekord.** Kódverzió, modellek, beállítások és az adatok ellenőrzőösszege a jelentés fejlécében és egy `futas.json`-ban.
-- **Hivatkozás-ellenőrzés.** A forrással alá nem támasztott állítás jelzése (most csak az ismeretlen azonosítót és a hivatkozás nélküli választ jelzi).
+- ~~**Hivatkozás-ellenőrzés.**~~ **Javítva (november 25.):** a hivatkozott állításokat egy második modellhívás a hivatkozott cikkek absztraktjával veti össze (✅ / ⚠️ / ❌, indoklással). Ellenőrzés: K5–K6.
 - **Közzététel.** A közlendő kérdés–válaszok kiválasztása; az azonos napi közzététel felülírja az archív oldalt (november 24-én négy közzététel volt).
 - **Témanevek.** A gyűjtőtéma jelölése; a nevek futásonként változhatnak (lásd a 2. pontot). Az új, nagyobb adaton érdemes kipróbálni több témát is (`N_TOPICS` 35–40).
 

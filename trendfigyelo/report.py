@@ -12,6 +12,7 @@ from datetime import datetime
 import pandas as pd
 
 from .trends import growth_note
+from .verify import ICONS, as_list, summary_counts
 
 ARXIV_REF = re.compile(r"\[(\d{4}\.\d{4,5})\]")
 PALETTE = ["#2a6fdb", "#e0663a", "#2e9e6b", "#a64ca6", "#c9a227", "#3aa5c4", "#d1495b", "#6b7a8f"]
@@ -259,6 +260,28 @@ def _eval_section(eval_df, eval_summary, scores, plotly_loaded):
     return "\n".join(parts)
 
 
+def _claims_html(claims, error=""):
+    """A hivatkozások tartalmi ellenőrzése a kérdés–válasz kártyán: összegzés, és lenyitva állításonként az ítélet."""
+    e = html.escape
+    if isinstance(error, str) and error.strip():
+        return f'<p class="warn">⚠ A hivatkozások tartalmi ellenőrzése nem futott le: {e(error)}</p>'
+    if not claims:
+        return ""
+    cnt = summary_counts(claims)
+    label = {"igen": "alátámasztja", "részben": "részben", "nem": "nem támasztja alá", None: "nem értékelt"}
+    rows = "".join(
+        f'<li><span title="{label.get(c.get("itelet"))}">{ICONS.get(c.get("itelet"), "·")}</span> '
+        f'{e(c.get("mondat", ""))} <span class="muted small">[{e(", ".join(c.get("ids", [])))}]'
+        + (f' – {e(c["indoklas"])}' if c.get("indoklas") else "") + "</span></li>" for c in claims)
+    cls = "warn" if cnt["nem"] or cnt["részben"] else "muted small"
+    head = (f"Hivatkozások tartalmi ellenőrzése: {ICONS['igen']} {cnt['igen']} alátámasztott · "
+            f"{ICONS['részben']} {cnt['részben']} részben · {ICONS['nem']} {cnt['nem']} nem alátámasztott"
+            + (f" · {cnt[None]} nem értékelt" if cnt[None] else ""))
+    return (f'<details class="claims"><summary class="{cls}">{head}</summary><ul class="claims">{rows}</ul>'
+            '<p class="muted small">Egy második modellhívás vetette össze az állításokat a hivatkozott cikkek '
+            "absztraktjával; jelzés, nem bizonyíték.</p></details>")
+
+
 def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, eval_df=None, eval_summary=None,
                  archive=None, n_show=8, archive_prefix="archiv/", map_fig=None, scores=None):
     """meta: dict(category, months, n_papers, downloaded, emb_model, llm_model, code_version, generated, authors, repo_url).
@@ -323,6 +346,7 @@ def build_report(meta, table, fig=None, summary="", qa_log=None, papers=None, ev
                 if item.get("invalid") else ""
             if str(item.get("uncited", "")).lower() == "true":
                 warn += '<p class="warn">⚠ A válasz egyetlen átadott forrásra sem hivatkozik.</p>'
+            warn += _claims_html(as_list(item.get("claims")), item.get("verify_error", ""))
             cards.append(f"""<article class="qa"><h3>{e(item["question"])}</h3><div class="prose">{md_lite(item["answer"])}</div>
 {warn}<details><summary>Források ({len(ids)})</summary><ol class="sources">{src}</ol></details></article>""")
         sections.append(f'<section id="kerdesek"><h2>Kérdések és válaszok</h2>{"".join(cards)}</section>')
@@ -376,10 +400,13 @@ td.growth {{ min-width:130px; }}
 .qa details {{ margin-top:6px; }} .qa summary {{ cursor:pointer; color:var(--muted); }}
 .sources {{ font-size:.9rem; padding-left:1.4em; }}
 .warn {{ color:var(--warn); font-size:.9rem; }}
+.qa summary.warn {{ color:var(--warn); }}
 .stats {{ display:flex; gap:12px; flex-wrap:wrap; margin:0 0 14px; }}
 .stat {{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 16px; min-width:110px; }}
 .stat small {{ display:block; color:var(--muted); font-size:.75rem; }}
 section h3 {{ margin:28px 0 6px; }}
+.claims li {{ margin:4px 0; }}
+ul.claims {{ list-style:none; padding-left:4px; }}
 .rank {{ display:inline-block; min-width:2.2em; padding:1px 6px; border-radius:4px; text-align:center; font-weight:600; }}
 .stat span {{ display:block; color:var(--muted); font-size:.8rem; }} .stat b {{ font-size:1.5rem; font-variant-numeric:tabular-nums; }}
 .archive {{ columns:3 180px; padding-left:1.2em; }}
