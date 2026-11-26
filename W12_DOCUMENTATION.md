@@ -234,6 +234,14 @@ Az offline tesztek mind lefutottak, Szilvia ellenőrzése mégis több valódi h
 
 Az automatikus tesztek és a böngészőben, a tényleges futtatókörnyezetben végzett kipróbálás tehát kiegészítik egymást. A munkamegosztásunkban ez a szerep természetesen adódott: aki nem írta a kódot, más szemmel nézi az eredményt.
 
+### 5.12. Az MI-támogatás legnagyobb haszna: elmaradnak a zsákutcák
+
+Személyes tapasztalatunk szerint az MI-vel támogatott fejlesztés hangsúlyos előnye, hogy a felmerülő kérdésekre és hibaüzenetekre gyorsan megvan a válasz: nem kell órákig kézikönyveket lapozni és fórumokat böngészni. A projektben ez a Colab-környezet hibáinál (elérhetetlenné vált modellnév, hiányzó modul, túlterhelt szerver, hiányzó GPU), a Plotly-változatok eltérésénél és a GitHub-közzététel beállításánál is így volt: a hibaüzenet bemásolása után többnyire percek alatt kiderült az ok és a javítás.
+
+Ez a kényelem felületességgel is fenyegethet. Aki csak azt kérdezi meg, mit kell csinálni, működő megoldáshoz jut, de nem érti, miért működik, és a következő hasonló helyzetben ugyanott tart. Ezt el lehet kerülni, ha az MI-től nemcsak a teendőt kérdezzük meg, hanem azt is, hogy miért, és a magyarázatot megpróbáljuk megérteni. Mi is így jártunk el például a tématérkép tengelyeinél (mit mutat a két tengely, és miért 768 dimenziósak a vektorok) vagy a növekedési mutató simításánál; ezek a magyarázatok a dokumentációba is bekerültek (4.5, 4.7).
+
+Az érték tehát nem az, hogy az MI helyettünk gondolkodik, hanem az, hogy megspórolja a kézikönyvek és fórumok bújásának fárasztó és sokszor céltalan zsákutcáit. A felszabaduló idő a megértésre és az eredmények ellenőrzésére fordítható.
+
 ## 6. Ismert hibák, szükséges módosítások és továbbfejlesztési lehetőségek
 
 A leadás előtt a kódot szándékosan nem változtattuk meg (kivéve a felület jelszavas védelmét), hogy a repó megegyezzen azzal, amivel a közzétett eredmények készültek. A határidő meghosszabbítása után a tématérkép készült el (4.7). A lista Szilvia leadás utáni ellenőrzésének eredményeivel bővült ([ellenőrzési összefoglaló](https://github.com/bandi137/w12-trendfigyelo/blob/0598356/eval/W12_vizsgalati_osszefoglalo_SzS_2026-11-23.md)); az általa javasolt első két kör hibáit november 23–24-én kijavítottuk, a többi javítása még hátravan. A nyitott tételeket és az új megállapításokat az [eval/ellenorzes.md](eval/ellenorzes.md) gyűjti.
