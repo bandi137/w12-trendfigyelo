@@ -122,7 +122,13 @@ def load_scores(path):
     A megjegyzés elején álló kód (pl. „HU04:”) adja a nyelvet és a sorszámot; ha nincs, a kérdésből felismert nyelv."""
     if not path or not os.path.exists(path):
         return None
-    df = pd.read_csv(path)
+    if str(path).endswith(".md"):                                   # kitöltött válaszlap (answersheet.py)
+        from .answersheet import parse_sheet
+        df = parse_sheet(open(path, encoding="utf-8").read())
+        if df.empty:
+            return None
+    else:
+        df = pd.read_csv(path)
     if not {"question", "pont"} <= set(df.columns):
         return None
     note = df.get("megjegyzes", pd.Series([""] * len(df))).fillna("").astype(str)

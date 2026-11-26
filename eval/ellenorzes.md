@@ -20,7 +20,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
 | E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | OK|
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `64 passed` (a figyelmeztetések nem számítanak). | OK|
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `67 passed` (a figyelmeztetések nem számítanak). | OK|
 | E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | OK|
 
 ### 1.2. A felület védelme
@@ -129,8 +129,8 @@ Az új `eval/kerdesek.csv`: 60 kérdés (30 magyar, 30 angol; ebből 20 a koráb
 | U1 | A notebook 1. szakaszában `FRISSITES = "soha"`, majd Run all (vagy első cella + Run after). | A letöltés kimarad, a Drive-on lévő közös adat töltődik be. | |
 | U2 | A 6. szakasz (vagy a felület Kiértékelés fülén a „Kiértékelés futtatása”). | „57 tesztkérdés betöltve … (3 kihagyva, lásd fent)”, előtte a három kihagyott sor. Ha más sor is kimarad, elírás lehet az azonosítóban: javítsd a `kerdesek.csv`-ben. | |
 | U3 | Nézd meg az ábrát. | Nyelvenként három sor, soronként 10 négyzet, a nyelvek között szaggatott vonal, bal oldalt „első 5-ben x/30”. Írd ide az összefoglaló mondatot (hit@1/5/10, nyelvenként). | |
-| U4 | Kézi pontozás: válassz 12 kérdést (6 magyar, 6 angol), és tedd fel őket a notebookban egy új cellában: `for q in [...]: rag.ask(q)`, majd `rag.save_log(f"{DATA_DIR}/qa_naplo.csv")`. | A Drive-on frissül a `qa_naplo.csv`; benne a válasz, a források és a hivatkozás-ellenőrzés ítéletei (`claims`). | |
-| U5 | Töltsd le a `qa_naplo.csv`-t, csak a 12 sort tartsd meg, és vegyél fel két oszlopot: `pont` (1–5) és `megjegyzes` („HU01: …”, „EN01: …” kezdettel). Töltsd fel `eval/qa_pontozas.csv` néven (a régit felülírva). | A Kiértékelés fül alján 12 sáv, magyar elöl; a sávra mutatva az indoklás. Ha a hivatkozás-ellenőrzés ítéletével nem értesz egyet, írd a megjegyzésbe (K5). | |
+| U4 | Kézi pontozás: a felület Kiértékelés fülén nyisd le a „Válaszlap a kézi pontozáshoz” részt, állítsd be: 6 magyar, 6 angol kérdés (bekapcsolt hivatkozás-ellenőrzéssel), és „Válaszlap készítése”. | Kb. 2–4 perc után letölthető `valaszlap_ÉÉÉÉ-HH-NN_ÓÓPP.md` (a Drive-on is). Benne kérdésenként: a kérdés kódja (HU03, EN08…), a várt cikk és a helye a keresésben, a válasz kattintható arXiv-hivatkozásokkal, a modellnek átadott források (★ = a várt cikk), a hivatkozás-ellenőrzés ítéletei, végül üres „Pont (1–5)” és „Megjegyzés” sor. | |
+| U5 | Töltsd ki kérdésenként a „Pont (1–5):” sort (egy szám) és a „Megjegyzés:” sort; a skála a fájl elején. Ha a hivatkozás-ellenőrzés ítéletével nem értesz egyet, írd a megjegyzésbe (K5). Töltsd fel a GitHubra `eval/qa_pontozas.md` néven. | Az első cella + Run after után a Kiértékelés fül alján és a jelentésben a pontozás ábrája a kitöltött 12 válaszból (a régi `qa_pontozas.csv` helyett). | |
 | U6 | A végén: Közzététel (csak a szükséges kérdés–válaszokkal), és írd ide az archív oldal nevét. | A dokumentáció 4.4–4.6 számai ebből frissülnek. | |
 
 ## 3. Még nyitott a korábbi ellenőrzésből

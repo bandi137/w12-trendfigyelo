@@ -2,6 +2,7 @@
 
 A notebook 7. szakasza indítja:  app = tf.TrendApp(...); app.launch()
 """
+import functools
 import os
 import re
 import subprocess
@@ -12,6 +13,7 @@ from zoneinfo import ZoneInfo
 from . import report
 from .evaluate import evaluate, load_questions
 from .verify import as_list, claims_markdown, summary_counts
+from .answersheet import run_sheet, select_questions, to_markdown
 from .evalviz import eval_figure, eval_view, load_scores, overview_text, scores_figure
 from .data import download_dates, per_month_limit, sampling_of
 from .publish import PublishError, delete_archives, list_archive, pages_url, publish_files
@@ -59,8 +61,8 @@ SCORES_HELP = """### A válaszok kézi pontozása
 A keresés mellett a nyelvi modell válaszait is ellenőriztük: a pontozó a választ a modellnek átadott cikkek
 absztraktjaival vetette össze, és 1–5 ponttal értékelte, mennyire pontos, teljes és a forrásokkal alátámasztott
 (5: pontos és teljes, helyes hivatkozásokkal; alacsonyabb: hiányos válasz, hibás hivatkozás, vagy a kapott cikkek
-nem elegendőek a válaszhoz). Ez az ábra a korábban pontozott válaszokat mutatja (`eval/qa_pontozas.csv`), a gomb
-nem változtat rajta. Egy sávra mutatva látszik az indoklás."""
+nem elegendőek a válaszhoz). Az ábra a repóba feltöltött, kitöltött válaszlapból (`eval/qa_pontozas.md`, ha nincs:
+`eval/qa_pontozas.csv`) készül, a gombok nem változtatnak rajta. Egy sávra mutatva látszik az indoklás."""
 
 
 TIMEZONE = ZoneInfo("Europe/Budapest")   # a Colab órája UTC; a jelentés és az archívum időpontja helyi idő
@@ -197,8 +199,27 @@ class TrendApp:
         return self.summary
 
     def scores(self):
-        """A kézzel pontozott válaszok a repóból (eval/qa_pontozas.csv), ha vannak."""
-        return load_scores(os.path.join(self.repo_dir, "eval", "qa_pontozas.csv"))
+        """A kézzel pontozott válaszok a repóból: a kitöltött válaszlap (eval/qa_pontozas.md), ha van benne pont,
+        különben a régebbi táblázat (eval/qa_pontozas.csv)."""
+        md = load_scores(os.path.join(self.repo_dir, "eval", "qa_pontozas.md"))
+        return md if md is not None else load_scores(os.path.join(self.repo_dir, "eval", "qa_pontozas.csv"))
+
+    def answer_sheet(self, n_hu=6, n_en=6, verify=True, progress=None):
+        """Válaszlap a kézi pontozáshoz: a kiválasztott tesztkérdések sorban, a válaszok, források és ítéletek
+        egy Markdown-fájlban a Drive-on (valaszlap_<időpont>.md). Visszaad: a fájl útvonala és a kérdések száma."""
+        path = os.path.join(self.repo_dir, "eval", "kerdesek.csv")
+        items = select_questions(load_questions(path, known_ids=set(self.df.id)), n_hu, n_en)
+        if not items:
+            raise ValueError("Nincs kiválasztott tesztkérdés (eval/kerdesek.csv, vagy 0 kérdés nyelvenként).")
+        rows = run_sheet(self.rag, items, k=self.s["top_k"], verify=verify, progress=progress)
+        m = self.meta()
+        text = to_markdown(rows, dict(generated=now_local().strftime("%Y-%m-%d %H:%M"), category=m["category"],
+                                      n_papers=m["n_papers"], months=m["months"], model=m["llm_model"],
+                                      top_k=self.s["top_k"]), self.df)
+        out = os.path.join(self.data_dir, f"valaszlap_{now_local().strftime('%Y-%m-%d_%H%M')}.md")
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(text)
+        return out, len(rows), sum(1 for r in rows if r.get("error"))
 
     def run_eval(self, path=None):
         path = path or os.path.join(self.repo_dir, "eval", "kerdesek.csv")
@@ -273,9 +294,10 @@ class TrendApp:
         import gradio as gr
 
         def safe(fn):
-            def wrapped(*a):
+            @functools.wraps(fn)                 # az aláírás megmarad (a Gradio így adja át a gr.Progress-t)
+            def wrapped(*a, **kw):
                 try:
-                    return fn(*a)
+                    return fn(*a, **kw)
                 except PublishError as e:
                     raise gr.Error(str(e))
                 except Exception as e:
@@ -407,6 +429,31 @@ class TrendApp:
                     return overview_text(res), eval_figure(res), gr.update(value=eval_view(res), visible=True)
                 busy([eval_btn.click], eval_btn, do_eval, None, [eval_sum, eval_plot, eval_tab], eval_sum,
                      "A kiértékelés fut: minden tesztkérdésre keresés a cikkek között (néhány másodperc).")
+                with gr.Accordion("Válaszlap a kézi pontozáshoz", open=False):
+                    gr.Markdown("A rendszer sorban felteszi a kiválasztott tesztkérdéseket (`eval/kerdesek.csv`), és "
+                                "a kérdéseket, a válaszokat, a modellnek átadott forrásokat (arXiv-linkekkel), a várt "
+                                "cikk helyét és a hivatkozás-ellenőrzés ítéleteit **egyetlen Markdown-fájlba** írja. "
+                                "A fájlban kérdésenként a „Pont (1–5)” és a „Megjegyzés” sort kell kitölteni, majd a "
+                                "fájlt `eval/qa_pontozas.md` néven a repóba feltölteni: a lenti pontozás-ábra ebből "
+                                "készül. A kérdések nyelvenként egyenletesen oszlanak el a fájlban; ha a szám "
+                                "legalább annyi, ahány kérdés van, mind. Kérdésenként kb. 10–20 másodperc.")
+                    with gr.Row():
+                        n_hu = gr.Number(value=6, precision=0, minimum=0, label="Magyar kérdések száma")
+                        n_en = gr.Number(value=6, precision=0, minimum=0, label="Angol kérdések száma")
+                        sheet_check = gr.Checkbox(value=bool(getattr(self.rag, "verify", True)),
+                                                  label="Hivatkozások tartalmi ellenőrzése")
+                    sheet_btn = gr.Button("Válaszlap készítése", variant="primary")
+                    sheet_file = gr.File(label="Válaszlap (Markdown)")
+                    sheet_status = gr.Markdown()
+
+                    def do_sheet(h, e, c, progress=gr.Progress()):
+                        path, n, bad = self.answer_sheet(
+                            int(h or 0), int(e or 0), bool(c),
+                            progress=lambda i, total, code: progress((i - 1) / total, desc=f"{code} ({i}/{total})"))
+                        note = f" ⚠ {bad} kérdés nem futott le (a fájlban jelölve)." if bad else ""
+                        return path, f"✅ {n} kérdés kész. A fájl a Drive-on is megvan: `{os.path.basename(path)}`.{note}"
+                    busy([sheet_btn.click], sheet_btn, do_sheet, [n_hu, n_en, sheet_check], [sheet_file, sheet_status],
+                         sheet_status, "A kérdések feltevése sorban (kérdésenként kb. 10–20 másodperc).")
                 scores = self.scores()
                 if scores is not None and len(scores):
                     gr.Markdown(SCORES_HELP)

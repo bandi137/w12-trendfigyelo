@@ -509,3 +509,62 @@ def test_pull_stays_effective_with_spreading():
     assert vals[0] > vals[1] > vals[2] > vals[3]                               # fokozatosan tömörebb foltok
     old = _landscape(_spread_islands(_pull(xy, topics, PULL), topics))          # az alapérték a korábbi kép
     assert np.allclose(_layout(xy, topics, PULL, True), old, atol=1e-6)
+
+
+def test_select_questions_codes_and_spread():
+    from trendfigyelo.answersheet import select_questions
+    qs = [{"q": f"Hogyan működik a(z) {i}. módszer?", "expected": ["2601.00001"]} for i in range(30)] + \
+         [{"q": f"How does method {i} work?", "expected": ["2601.00002"]} for i in range(30)]
+    picked = select_questions(qs, 6, 6)
+    assert [q["code"] for q in picked] == ["HU03", "HU08", "HU13", "HU18", "HU23", "HU28",
+                                           "EN03", "EN08", "EN13", "EN18", "EN23", "EN28"]   # egyenletesen
+    assert len(select_questions(qs, 99, 0)) == 30 and select_questions(qs, 0, 0) == []
+
+
+def test_answer_sheet_roundtrip(app):
+    import pathlib
+    from trendfigyelo.answersheet import parse_sheet
+    eval_dir = pathlib.Path(app.repo_dir) / "eval"
+    ids = app.df.id.tolist()
+    (eval_dir / "kerdesek.csv").write_text(
+        "vart_cikkek,keszitette,kerdes\n"
+        f"{ids[0]},SuleSz,Mi újság a beszédfelismerésben?\n"
+        f"{ids[1]},SuleSz,How are agents evaluated?\n"
+        f"2611.99999,SuleSz,Időablakon kívüli kérdés?\n", encoding="utf-8")
+    n_log = len(app.rag.log)
+    seen = []
+    path, n, bad = app.answer_sheet(6, 6, verify=True, progress=lambda i, t, c: seen.append((i, t, c)))
+    assert (n, bad) == (2, 0) and seen == [(1, 2, "HU01"), (2, 2, "EN01")]
+    assert len(app.rag.log) == n_log                                     # a közzétételi listába nem kerül
+    text = open(path, encoding="utf-8").read()
+    assert "## HU01 · Mi újság a beszédfelismerésben?" in text and "## EN01 · How are agents evaluated?" in text
+    assert f"[{ids[0]}](https://arxiv.org/abs/{ids[0]})" in text and "### Válasz" in text
+    assert "Hivatkozások tartalmi ellenőrzése" in text and "**Pont (1–5):** " in text
+    assert "Időablakon kívüli" not in text                               # az adatban nem lévő kimarad
+    assert parse_sheet(text).empty                                       # kitöltetlen: nincs pont
+    filled = text.replace("**Pont (1–5):** ", "**Pont (1–5):** 4", 1) \
+                 .replace("**Megjegyzés:** ", "**Megjegyzés:** Jó, de\nhiányos.", 1)
+    sc = parse_sheet(filled)
+    assert sc.to_dict("records") == [{"question": "Mi újság a beszédfelismerésben?", "pont": 4,
+                                      "megjegyzes": "HU01: Jó, de hiányos."}]
+    (eval_dir / "qa_pontozas.md").write_text(filled, encoding="utf-8")
+    scores = app.scores()
+    assert scores["kód"].tolist() == ["HU01"] and scores["indoklás"].tolist() == ["Jó, de hiányos."]
+
+
+def test_answer_sheet_continues_after_error(app, monkeypatch):
+    import pathlib
+    from trendfigyelo.answersheet import run_sheet, select_questions
+    ids = app.df.id.tolist()
+    qs = [{"q": "Első kérdés?", "expected": [ids[0]]}, {"q": "Második kérdés?", "expected": [ids[1]]}]
+    calls = {"n": 0}
+    orig = app.rag.ask
+
+    def flaky(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("429 kvóta")
+        return orig(*a, **kw)
+    monkeypatch.setattr(app.rag, "ask", flaky)
+    rows = run_sheet(app.rag, select_questions(qs, 5, 5))
+    assert "429 kvóta" in rows[0]["error"] and rows[1]["answer"] and not rows[1]["error"]
