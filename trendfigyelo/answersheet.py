@@ -17,6 +17,30 @@ SCALE = ("5 = pontos és teljes, minden állítás a forrásokban van, helyes hi
          "4 = lényegében jó, kisebb hiány vagy pontatlanság; 3 = részben jó vagy hiányos; "
          "2 = jelentős hiba vagy alá nem támasztott állítás; 1 = hibás vagy nem a kérdésre válaszol.")
 
+# A pontozás szempontjai a válaszlap elején (hogy több pontozó, ill. több alkalom is azonos mércével dolgozzon).
+RUBRIC = """**Mit pontozunk?** A választ a modellnek átadott források (az absztraktok) alapján: azt, amit a modell a kapott cikkekből kihozott. Nem a kérdés „igazi” válaszát és nem a keresést (azt a kiértékelés hit@k-ja méri). A szempontok fontossági sorrendben:
+
+1. **Forráshűség:** minden állítás benne van a hivatkozott cikk absztraktjában, vagy közvetlenül következik belőle (a legfontosabb).
+2. **Hivatkozások:** a hivatkozás arra a cikkre mutat, amelyikből az állítás származik.
+3. **Válasz a kérdésre:** a kérdés lényegére felel, és amennyire a források engedik, teljes.
+4. **Érthetőség és nyelv:** a kérdés nyelvén, érthetően (csak kis súllyal).
+
+| Pont | Mikor |
+|---|---|
+| **5** | Minden állítás alátámasztott, minden hivatkozás helyes, a kérdés lényegét megválaszolja (amennyire a források engedik). |
+| **4** | Lényegében jó, valótlan állítás nincs; de egy kisebb pontatlanság, kissé általánosabb megfogalmazás, vagy kimarad egy fontos részlet, ami a forrásokban benne volt. |
+| **3** | Részben jó: a válasz egy része helyes, de hiányos, **vagy** van benne egy alá nem támasztott / túlzó állítás, **vagy** egy hivatkozás rossz cikkre mutat. |
+| **2** | Jelentős hiba: több alá nem támasztott állítás, a fő állítás nem a hivatkozott forrásból jön, vagy csak érinti a kérdést. |
+| **1** | Hibás, kitalált tartalom, vagy nem a kérdésre válaszol; a hivatkozások nagyrészt rosszak. |
+
+**Határesetek:**
+- *A modell jelzi, hogy a források nem elegendőek* (gyakran ★ nélkül, mert a várt cikk nem került át): ha a jelzés igaz, és amit mond, az alátámasztott, **3 pont** (helyesen viselkedett, de nem válaszolt); a megjegyzésbe: „forráshiány”.
+- *Igaz, de a forrásokban nem szereplő (általános tudásból vett) állítás:* alá nem támasztottnak számít, legfeljebb **2–3 pont**.
+- *Rossz nyelvű válasz* (magyar kérdésre angolul vagy fordítva): egy pont levonás.
+- *A hivatkozás-ellenőrzés ítéletei* (✅/⚠️/❌) csak segítség; a te ítéleted számít. Ha nem értesz egyet vele, írd a megjegyzésbe.
+
+**Kitöltés:** a „Pont” sorba egyetlen egész szám kerüljön (1–5; fél pont nincs, a „4,5”-ből 4 lesz). A megjegyzés 1–2 mondat: mi hiányzik vagy mi hibás (több sorba is írható, a következő „---” vonalig tart). Érdemes előbb a választ, aztán a hivatkozott absztraktokat elolvasni, és az állításokat egyenként összevetni; kérdésenként kb. 5–8 perc."""
+
 
 def arxiv_url(paper_id):
     return f"https://arxiv.org/abs/{paper_id}"
@@ -96,7 +120,7 @@ def to_markdown(rows, meta, df=None):
         "**Teendő:** minden kérdésnél olvasd el a választ és a hivatkozott cikkek absztraktját (a linkeken), és "
         "töltsd ki a **Pont** sort (1–5) és a **Megjegyzés** sort. A kitöltött fájlt töltsd fel a repóba "
         "`eval/qa_pontozas.md` néven; a felület és a jelentés ebből rajzolja a pontozás ábráját.", "",
-        f"**Skála:** {SCALE}", "",
+        RUBRIC, "",
         "Jelek: ★ = a tesztkérdés várt cikke; ✅ alátámasztja · ⚠️ részben · ❌ nem támasztja alá "
         "(a hivatkozás-ellenőrzés, egy második modellhívás ítélete: jelzés, nem bizonyíték).", "",
     ]
