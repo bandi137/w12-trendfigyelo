@@ -20,7 +20,7 @@ A november 23-i ellenőrzés óta változott részek kipróbálása **valódi ad
 | # | Mit csinálj | Mit kell látnod | Eredmény |
 |---|---|---|---|
 | E1 | Ha a 2. pont szerint **te** töltöd le az új adatot: nyisd meg a notebookot frissen a GitHubról (README: „Open in Colab”), majd **Runtime → Run all**. Ha András tölti le, előbb a megosztott mappát kell beállítani (2. pont), és csak utána futtatni. | Az 1. szakaszban `PER_MONTH = 3000`. A 2. szakasz hónaponként kiírja: „… 10/30 nap, N cikk”, végül „ÉÉÉÉ-HH N cikk letöltve”; a 12 hónap kb. 25–40 perc, összesen kb. 20–25 ezer cikk. A vektorizálás és a térkép egyszer teljesen újraszámolódik (néhány perc). Második futáskor minden a Drive-ról töltődik. | OK|
-| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `63 passed` (a figyelmeztetések nem számítanak). | OK|
+| E2 | Új kódcellában: `!cd /content/repo && python -m pytest -q` | `64 passed` (a figyelmeztetések nem számítanak). | OK|
 | E3 | Nézd meg a jelentés fejlécében az „adat letöltve” dátumot, és a 6. szakasz (kiértékelés) figyelmeztetéseit. | Az új letöltés napja. Ha egy tesztkérdés várt cikke nincs az új adatban, a kiértékelés figyelmeztet; ezeket a kérdéseket írd ide (az `eval/kerdesek.csv` várt azonosítóját át kell nézni). | OK|
 
 ### 1.2. A felület védelme
@@ -117,6 +117,21 @@ Mindkettő a régi, havi 400 cikkes minta volt, amely csak a hónap utolsó napj
 3. A végleges jelentés és a dokumentáció számai ebből az egy letöltésből készülnek; a dátumát ide írjuk: **…**
 
 ---
+
+## 2b. Új kiértékelés a közös adaton (2026. november 26-tól)
+
+Az új `eval/kerdesek.csv`: 60 kérdés (30 magyar, 30 angol; ebből 20 a korábbi, 40 új). A korábbi kiértékelés (hit@5 = 0,80, 8 pontozott válasz) a régi, 4800 cikkes adatból készült, ezért újra kell futtatni.
+
+**Az időablak.** Az adat az utolsó 12 lezárt hónap: most 2025-11 – 2026-10. Három kérdés várt cikke 2026 novemberi (`2611.…`, a fájl 10., 11. és 41. sora), ezek most nincsenek az adatban: a kiértékelés **kihagyja** őket (figyelmeztetéssel), így 57 kérdés számít. December 1. után az `auto` frissítés letöltené a novembert, és kiesne 2025 novembere: akkor a négy `2511.…` kérdés (22., 23., 42., 43. sor) esne ki. Javaslat: a beadásig **rögzítsük az adatot** (`FRISSITES = "soha"` a notebook 1. szakaszában, mindkettőnknél), és a három novemberi kérdést cseréld le egy-egy, az időablakba eső cikkre (vagy hagyd, és a dokumentáció 57 kérdést említ).
+
+| # | Mit csinálj | Mit kell látnod | Eredmény |
+|---|---|---|---|
+| U1 | A notebook 1. szakaszában `FRISSITES = "soha"`, majd Run all (vagy első cella + Run after). | A letöltés kimarad, a Drive-on lévő közös adat töltődik be. | |
+| U2 | A 6. szakasz (vagy a felület Kiértékelés fülén a „Kiértékelés futtatása”). | „57 tesztkérdés betöltve … (3 kihagyva, lásd fent)”, előtte a három kihagyott sor. Ha más sor is kimarad, elírás lehet az azonosítóban: javítsd a `kerdesek.csv`-ben. | |
+| U3 | Nézd meg az ábrát. | Nyelvenként három sor, soronként 10 négyzet, a nyelvek között szaggatott vonal, bal oldalt „első 5-ben x/30”. Írd ide az összefoglaló mondatot (hit@1/5/10, nyelvenként). | |
+| U4 | Kézi pontozás: válassz 12 kérdést (6 magyar, 6 angol), és tedd fel őket a notebookban egy új cellában: `for q in [...]: rag.ask(q)`, majd `rag.save_log(f"{DATA_DIR}/qa_naplo.csv")`. | A Drive-on frissül a `qa_naplo.csv`; benne a válasz, a források és a hivatkozás-ellenőrzés ítéletei (`claims`). | |
+| U5 | Töltsd le a `qa_naplo.csv`-t, csak a 12 sort tartsd meg, és vegyél fel két oszlopot: `pont` (1–5) és `megjegyzes` („HU01: …”, „EN01: …” kezdettel). Töltsd fel `eval/qa_pontozas.csv` néven (a régit felülírva). | A Kiértékelés fül alján 12 sáv, magyar elöl; a sávra mutatva az indoklás. Ha a hivatkozás-ellenőrzés ítéletével nem értesz egyet, írd a megjegyzésbe (K5). | |
+| U6 | A végén: Közzététel (csak a szükséges kérdés–válaszokkal), és írd ide az archív oldal nevét. | A dokumentáció 4.4–4.6 számai ebből frissülnek. | |
 
 ## 3. Még nyitott a korábbi ellenőrzésből
 

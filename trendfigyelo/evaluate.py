@@ -12,8 +12,9 @@ ARXIV_ID = re.compile(r"\d{4}\.\d{4,5}")
 def load_questions(path, known_ids=None):
     """Beolvassa az eval/kerdesek.csv-t: vart_cikkek, keszitette, kerdes (a kérdés az utolsó oszlop,
     így idézőjel nélküli vessző is lehet benne). Az azonosítók szövegként maradnak.
-    Ha `known_ids` meg van adva, figyelmeztet az adatok között nem szereplő azonosítókra."""
-    questions = []
+    Ha `known_ids` meg van adva, figyelmeztet az adatok között nem szereplő azonosítókra; ha egy kérdés egyik várt
+    cikke sincs az adatban (pl. az időablakon kívül esik), a kérdést kihagyja, mert a keresés nem is találhatná meg."""
+    questions, skipped = [], 0
     with open(path, encoding="utf-8-sig", newline="") as f:
         rows = list(csv.reader(f))
     for line_no, row in enumerate(rows[1:], start=2):           # 1. sor: fejléc
@@ -29,10 +30,16 @@ def load_questions(path, known_ids=None):
             continue
         if known_ids is not None:
             unknown = [i for i in expected if i not in known_ids]
+            if unknown and len(unknown) == len(expected):
+                print(f"⚠ {line_no}. sor kihagyva: a várt cikk nincs az adatok között (elírás, vagy kívül esik a letöltött "
+                      f"hónapokon?): {unknown}")
+                skipped += 1
+                continue
             if unknown:
-                print(f"⚠ {line_no}. sor: ezek az azonosítók nincsenek az adatok között (elírás, vagy nincs a letöltött mintában?): {unknown}")
+                print(f"⚠ {line_no}. sor: ezek az azonosítók nincsenek az adatok között, a többivel értékelem: {unknown}")
+                expected = [i for i in expected if i not in unknown]
         questions.append({"q": question, "expected": expected, "keszitette": row[1].strip()})
-    print(len(questions), "tesztkérdés betöltve:", path)
+    print(len(questions), "tesztkérdés betöltve:", path, f"({skipped} kihagyva, lásd fent)" if skipped else "")
     return questions
 
 

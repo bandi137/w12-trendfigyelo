@@ -269,6 +269,22 @@ def test_evaluate(corpus):
     assert tf.first_rank(["a", "b", "c"], ["c", "b"]) == 2 and tf.first_rank(["a"], ["x"]) is None
 
 
+def test_eval_figure_wraps_long_rows():
+    import pandas as pd
+    n_hu, n_en = 30, 7
+    ev = pd.DataFrame({"kérdés": [f"Kérdés {i}" for i in range(n_hu)] + [f"Question {i}" for i in range(n_en)],
+                       "hit@1": 0, "hit@5": [1] * 20 + [0] * 10 + [1] * 7, "hit@10": 1,
+                       "helyezés": pd.array(list(range(1, 31)) + [2] * 7, dtype="Int64"),
+                       "nyelv_kod": ["hu"] * n_hu + ["en"] * n_en})
+    fig = tf.eval_figure(ev, row_len=15)
+    hm = fig.data[0]
+    assert len(hm.y) == 3 and hm.y[0].startswith("Magyar (30)") and hm.y[2].startswith("Angol (7)")
+    assert not hm.y[1].strip() and len(set(hm.y)) == 3 and all(len(r) == 15 for r in hm.z)
+    assert sum(v is not None for r in hm.z for v in r) == 37                     # minden kérdés egy négyzet
+    assert "20/30" in hm.y[0] and "7/7" in hm.y[2]                               # összegzés a nyelv feliratában
+    assert len(tf.eval_figure(ev).data[0].y) == 3 + 1                            # alapból 10-es sorok: 3 + 1
+
+
 def test_eval_figure_grid_and_scores(tmp_path):
     import pandas as pd
     ev = pd.DataFrame({"kérdés": ["Mi újság a gépi fordításban?", "Hogyan működik?", "How do agents plan?"],
@@ -277,7 +293,7 @@ def test_eval_figure_grid_and_scores(tmp_path):
                        "várt cikk": ["2601.00001", "2601.00002", "2601.00003"]})
     fig = tf.eval_figure(ev)
     hm = fig.data[0]
-    assert hm.type == "heatmap" and list(hm.y) == ["Magyar (2)", "Angol (1)"]
+    assert hm.type == "heatmap" and [y.split("<br>")[0] for y in hm.y] == ["Magyar (2)", "Angol (1)"]
     assert [list(r) for r in hm.text] == [["1", "7"], ["3", ""]]                     # helyezés szerint rendezve, üres kitöltés
     assert [list(r) for r in hm.z] == [[0.5, 2.5], [1.5, None]]                      # kategória: 1. / 2–5. / 6–10.
     assert [t.name for t in fig.data[1:]] == [n for n, _ in tf.evalviz.RANK_BINS]    # jelmagyarázat
@@ -364,10 +380,14 @@ def test_load_questions(tmp_path, capsys):
     qs = tf.load_questions(str(p), known_ids={"2512.10100", "2602.22144", "2610.36980", "2605.30931"})
     out = capsys.readouterr().out
     assert [q["q"] for q in qs] == ["Mi az a RAG, és hogyan csökkenti a hallucinációt?",
-                                    "How are LLM agents evaluated, briefly?", "Elírt azonosító"]
+                                    "How are LLM agents evaluated, briefly?"]     # az adatban nem lévő kimarad
     assert qs[0]["expected"] == ["2512.10100", "2602.22144"]          # szövegként, nem 2512.101
     assert qs[1]["expected"] == ["2610.36980", "2605.30931"] and qs[1]["keszitette"] == "bandi137"
-    assert "5. sor kihagyva" in out and "6. sor kihagyva" in out and "9999.99999" in out
+    assert "5. sor kihagyva" in out and "6. sor kihagyva" in out and "7. sor kihagyva" in out and "9999.99999" in out
+    assert "(1 kihagyva" in out
+    part = tf.load_questions(str(p), known_ids={"2512.10100", "2610.36980", "2605.30931"})
+    assert part[0]["expected"] == ["2512.10100"] and "a többivel értékelem" in capsys.readouterr().out
+    assert len(tf.load_questions(str(p))) == 3                         # adat nélkül nem szűr
 
 
 def test_shipped_questions_file_loads():

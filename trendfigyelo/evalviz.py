@@ -53,9 +53,13 @@ def overview_text(eval_df):
     return " ".join(parts)
 
 
-def eval_figure(eval_df, title=True):
-    """Négyzetrács: egy négyzet egy tesztkérdés, nyelvenként egy sor, a helyezés szerint rendezve.
-    A szín a helyezés kategóriája, a szám a helyezés; az egér alatt a kérdés és a várt cikk."""
+ROW_LEN = 10   # ennél több kérdésnél a nyelv kérdései több sorba törnek (telefonon is olvasható négyzetek)
+
+
+def eval_figure(eval_df, title=True, row_len=ROW_LEN):
+    """Négyzetrács: egy négyzet egy tesztkérdés, nyelvenként egy (sok kérdésnél több, legfeljebb row_len hosszú)
+    sor, a helyezés szerint rendezve. A szín a helyezés kategóriája, a szám a helyezés; az egér alatt a kérdés és a
+    várt cikk."""
     import plotly.graph_objects as go
 
     df = eval_df.copy()
@@ -65,40 +69,45 @@ def eval_figure(eval_df, title=True):
     df["_r"] = pd.to_numeric(df["helyezés"], errors="coerce").fillna(99)
     langs = [l for l in ("hu", "en") if (df.nyelv_kod == l).any()] + \
         [l for l in df.nyelv_kod.unique() if l not in ("hu", "en")]
-    width = max(int((df.nyelv_kod == l).sum()) for l in langs)
+    width = min(max(int((df.nyelv_kod == l).sum()) for l in langs), row_len)
 
-    z, text, hover = [], [], []
+    z, text, hover, ylab = [], [], [], []
     for l in langs:
         g = df[df.nyelv_kod == l].sort_values(["_r"], kind="stable")
-        row_z = [k + 0.5 for k in g.kat] + [None] * (width - len(g))      # a lépcsős színskála sávjainak közepe
-        row_t = [("–" if k == 3 else f"{int(r)}") for k, r in zip(g.kat, g._r)] + [""] * (width - len(g))
-        row_h = [f"<b>{html.escape(textwrap.shorten(str(q), 110, placeholder='…'))}</b><br>"
-                 + "<br>".join(textwrap.wrap(f"Várt cikk: {v} · {RANK_BINS[k][0]}"
-                                             + (f" (a(z) {int(r)}. találat)" if k < 3 else ""), 70))
-                 for q, v, k, r in zip(g["kérdés"], g.get("várt cikk", [""] * len(g)), g.kat, g._r)] \
-            + [""] * (width - len(g))
-        z.append(row_z), text.append(row_t), hover.append(row_h)
+        cells_z = [k + 0.5 for k in g.kat]                              # a lépcsős színskála sávjainak közepe
+        cells_t = [("–" if k == 3 else f"{int(r)}") for k, r in zip(g.kat, g._r)]
+        cells_h = [f"<b>{html.escape(textwrap.shorten(str(q), 110, placeholder='…'))}</b><br>"
+                   + "<br>".join(textwrap.wrap(f"Várt cikk: {v} · {RANK_BINS[k][0]}"
+                                               + (f" (a(z) {int(r)}. találat)" if k < 3 else ""), 70))
+                   for q, v, k, r in zip(g["kérdés"], g.get("várt cikk", [""] * len(g)), g.kat, g._r)]
+        for s in range(0, len(g), width):
+            pad = width - len(cells_z[s:s + width])
+            z.append(cells_z[s:s + width] + [None] * pad)
+            text.append(cells_t[s:s + width] + [""] * pad)
+            hover.append(cells_h[s:s + width] + [""] * pad)
+            # a folytatósorok felirata üres, de a kategóriáknak különbözniük kell (eltérő számú szóköz)
+            ylab.append(f"{LANG_NAMES.get(l, l)} ({len(g)})<br><span style='font-size:10px'>első 5-ben "
+                        f"<b>{int(g['hit@5'].sum())}/{len(g)}</b></span>" if s == 0 else " " * len(ylab))
 
     n = len(RANK_BINS)
     scale = []
     for i, (_, c) in enumerate(RANK_BINS):                 # lépcsős színskála: 0..3 egész értékek
         scale += [[i / n, c], [(i + 1) / n, c]]
     fig = go.Figure(go.Heatmap(
-        z=z, x=list(range(1, width + 1)), y=[f"{LANG_NAMES.get(l, l)} ({int((df.nyelv_kod == l).sum())})" for l in langs],
+        z=z, x=list(range(1, width + 1)), y=ylab,
         zmin=0, zmax=n, colorscale=scale, showscale=False, xgap=3, ygap=10,
         text=text, texttemplate="%{text}", textfont=dict(size=13), hovertext=hover, hoverinfo="text"))
+    for i, lab in enumerate(ylab[1:], 1):                   # elválasztó vonal a nyelvek között
+        if lab.strip():
+            fig.add_shape(type="line", xref="paper", x0=0, x1=1, yref="y", y0=i - 0.5, y1=i - 0.5,
+                          line=dict(color="rgba(128,128,128,0.45)", width=1, dash="dot"))
     for name, color in RANK_BINS:                           # jelmagyarázat (a hőtérképnek nincs kategória-legendája)
         fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=name, hoverinfo="skip",
                                  marker=dict(symbol="square", size=13, color=color)))
-    for i, l in enumerate(langs):                           # sorvégi összegzés
-        g = df[df.nyelv_kod == l]
-        fig.add_annotation(x=1, xref="paper", xanchor="left", y=i, yref="y", showarrow=False, align="left",
-                           text=f"első 5-ben<br><b>{int(g['hit@5'].sum())}/{len(g)}</b>", xshift=8,
-                           font=dict(size=11, color=INK))
     fig.update_layout(
         title=dict(text="Hányadik helyen hozza a keresés a jó cikket?<br><sup>egy négyzet = egy tesztkérdés; "
                         "a szám a jó cikk helye a találatok között</sup>", x=0, font=dict(size=15)) if title else None,
-        height=130 + 62 * len(langs), margin=dict(l=10, r=78, t=70 if title else 20, b=10),
+        height=130 + 52 * len(ylab), margin=dict(l=10, r=10, t=70 if title else 20, b=10),
         xaxis=dict(visible=False, fixedrange=True), yaxis=dict(autorange="reversed", fixedrange=True, ticks="",
                                                              showgrid=False, ticksuffix="  "),
         legend=dict(orientation="h", x=0, y=-0.04, yanchor="top", font=dict(size=11), itemclick=False,
